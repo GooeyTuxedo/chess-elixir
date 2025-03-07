@@ -16,7 +16,7 @@ defmodule ChessAppWeb.GameLive.Index do
   def handle_event("create-game", _params, socket) do
     {:ok, game_id} = GameServer.create_game()
 
-    {:noreply, push_redirect(socket, to: Routes.game_show_path(socket, :show, game_id))}
+    {:noreply, push_redirect(socket, to: ~p"/games/#{game_id}")}
   end
 
   @impl true
