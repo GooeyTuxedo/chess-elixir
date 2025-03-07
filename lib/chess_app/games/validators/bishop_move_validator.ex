@@ -8,7 +8,7 @@ defmodule ChessApp.Games.Validators.BishopMoveValidator do
   Returns {:ok, move_type} or {:error, reason}.
   """
   @spec validate({integer, integer}, {integer, integer}, any()) ::
-    {:ok, atom()} | {:error, atom()}
+          {:ok, atom()} | {:error, atom()}
   def validate({from_file, from_rank}, {to_file, to_rank}, target_piece) do
     file_diff = abs(to_file - from_file)
     rank_diff = abs(to_rank - from_rank)

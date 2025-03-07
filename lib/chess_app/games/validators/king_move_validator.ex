@@ -10,7 +10,7 @@ defmodule ChessApp.Games.Validators.KingMoveValidator do
   Returns {:ok, move_type} or {:error, reason}.
   """
   @spec validate(Board.t(), {integer, integer}, {integer, integer}, Board.color()) ::
-    {:ok, atom()} | {:error, atom()}
+          {:ok, atom()} | {:error, atom()}
   def validate(board, from_pos = {from_file, from_rank}, to_pos = {to_file, to_rank}, color) do
     target_piece = Board.piece_at(board, to_pos)
 
@@ -23,15 +23,15 @@ defmodule ChessApp.Games.Validators.KingMoveValidator do
         if target_piece, do: {:ok, :capture}, else: {:ok, :normal}
 
       # Kingside castling
-      from_pos == {4, (if color == :white, do: 0, else: 7)} &&
-      to_pos == {6, (if color == :white, do: 0, else: 7)} &&
-      can_castle?(board, color, :kingside) ->
+      from_pos == {4, if(color == :white, do: 0, else: 7)} &&
+        to_pos == {6, if(color == :white, do: 0, else: 7)} &&
+          can_castle?(board, color, :kingside) ->
         {:ok, :castle_kingside}
 
       # Queenside castling
-      from_pos == {4, (if color == :white, do: 0, else: 7)} &&
-      to_pos == {2, (if color == :white, do: 0, else: 7)} &&
-      can_castle?(board, color, :queenside) ->
+      from_pos == {4, if(color == :white, do: 0, else: 7)} &&
+        to_pos == {2, if(color == :white, do: 0, else: 7)} &&
+          can_castle?(board, color, :queenside) ->
         {:ok, :castle_queenside}
 
       true ->
@@ -52,20 +52,20 @@ defmodule ChessApp.Games.Validators.KingMoveValidator do
     case side do
       :kingside ->
         castling_rights &&
-        Board.piece_at(board, {5, rank}) == nil &&
-        Board.piece_at(board, {6, rank}) == nil &&
-        !MoveValidator.is_square_attacked?(board, {4, rank}, opposite_color(color)) &&
-        !MoveValidator.is_square_attacked?(board, {5, rank}, opposite_color(color)) &&
-        !MoveValidator.is_square_attacked?(board, {6, rank}, opposite_color(color))
+          Board.piece_at(board, {5, rank}) == nil &&
+          Board.piece_at(board, {6, rank}) == nil &&
+          !MoveValidator.is_square_attacked?(board, {4, rank}, opposite_color(color)) &&
+          !MoveValidator.is_square_attacked?(board, {5, rank}, opposite_color(color)) &&
+          !MoveValidator.is_square_attacked?(board, {6, rank}, opposite_color(color))
 
       :queenside ->
         castling_rights &&
-        Board.piece_at(board, {1, rank}) == nil &&
-        Board.piece_at(board, {2, rank}) == nil &&
-        Board.piece_at(board, {3, rank}) == nil &&
-        !MoveValidator.is_square_attacked?(board, {4, rank}, opposite_color(color)) &&
-        !MoveValidator.is_square_attacked?(board, {3, rank}, opposite_color(color)) &&
-        !MoveValidator.is_square_attacked?(board, {2, rank}, opposite_color(color))
+          Board.piece_at(board, {1, rank}) == nil &&
+          Board.piece_at(board, {2, rank}) == nil &&
+          Board.piece_at(board, {3, rank}) == nil &&
+          !MoveValidator.is_square_attacked?(board, {4, rank}, opposite_color(color)) &&
+          !MoveValidator.is_square_attacked?(board, {3, rank}, opposite_color(color)) &&
+          !MoveValidator.is_square_attacked?(board, {2, rank}, opposite_color(color))
     end
   end
 

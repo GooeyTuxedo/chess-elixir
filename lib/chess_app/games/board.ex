@@ -10,8 +10,10 @@ defmodule ChessApp.Games.Board do
 
   defstruct squares: %{},
             turn: :white,
-            castling_rights: %{white: %{kingside: true, queenside: true},
-                               black: %{kingside: true, queenside: true}},
+            castling_rights: %{
+              white: %{kingside: true, queenside: true},
+              black: %{kingside: true, queenside: true}
+            },
             en_passant_target: nil,
             halfmove_clock: 0,
             fullmove_number: 1
@@ -50,71 +52,76 @@ defmodule ChessApp.Games.Board do
     piece = piece_at(board, from)
 
     # Apply the move
-    new_board = case move_type do
-      :normal ->
-        apply_normal_move(board, from, to)
+    new_board =
+      case move_type do
+        :normal ->
+          apply_normal_move(board, from, to)
 
-      :capture ->
-        apply_normal_move(board, from, to)
+        :capture ->
+          apply_normal_move(board, from, to)
 
-      :double_push ->
-        # Set en passant target
-        {file, rank} = to
-        direction = if elem(piece, 0) == :white, do: -1, else: 1
-        en_passant_target = {file, rank + direction}
+        :double_push ->
+          # Set en passant target
+          {file, rank} = to
+          direction = if elem(piece, 0) == :white, do: -1, else: 1
+          en_passant_target = {file, rank + direction}
 
-        board
-        |> apply_normal_move(from, to)
-        |> Map.put(:en_passant_target, en_passant_target)
+          board
+          |> apply_normal_move(from, to)
+          |> Map.put(:en_passant_target, en_passant_target)
 
-      :en_passant ->
-        # Remove the captured pawn
-        {to_file, to_rank} = to
-        direction = if elem(piece, 0) == :white, do: -1, else: 1
-        captured_position = {to_file, to_rank - direction}
+        :en_passant ->
+          # Remove the captured pawn
+          {to_file, to_rank} = to
+          direction = if elem(piece, 0) == :white, do: -1, else: 1
+          captured_position = {to_file, to_rank - direction}
 
-        board
-        |> apply_normal_move(from, to)
-        |> update_in([Access.key(:squares)], &Map.delete(&1, captured_position))
+          board
+          |> apply_normal_move(from, to)
+          |> update_in([Access.key(:squares)], &Map.delete(&1, captured_position))
 
-      :castle_kingside ->
-        # Move king and rook
-        {_, king_rank} = from
-        rook_from = {7, king_rank}
-        rook_to = {5, king_rank}
+        :castle_kingside ->
+          # Move king and rook
+          {_, king_rank} = from
+          rook_from = {7, king_rank}
+          rook_to = {5, king_rank}
 
-        board
-        |> apply_normal_move(from, to)  # Move king
-        |> apply_normal_move(rook_from, rook_to)  # Move rook
+          board
+          # Move king
+          |> apply_normal_move(from, to)
+          # Move rook
+          |> apply_normal_move(rook_from, rook_to)
 
-      :castle_queenside ->
-        # Move king and rook
-        {_, king_rank} = from
-        rook_from = {0, king_rank}
-        rook_to = {3, king_rank}
+        :castle_queenside ->
+          # Move king and rook
+          {_, king_rank} = from
+          rook_from = {0, king_rank}
+          rook_to = {3, king_rank}
 
-        board
-        |> apply_normal_move(from, to)  # Move king
-        |> apply_normal_move(rook_from, rook_to)  # Move rook
+          board
+          # Move king
+          |> apply_normal_move(from, to)
+          # Move rook
+          |> apply_normal_move(rook_from, rook_to)
 
-      :promotion ->
-        # Ensure a promotion piece was provided
-        if promotion_piece do
-          # Get the color from the original piece
-          {color, _} = piece
-          # Create the new piece with the provided promotion piece type
-          promoted_piece = {color, promotion_piece}
+        :promotion ->
+          # Ensure a promotion piece was provided
+          if promotion_piece do
+            # Get the color from the original piece
+            {color, _} = piece
+            # Create the new piece with the provided promotion piece type
+            promoted_piece = {color, promotion_piece}
 
-          # Remove the pawn and add the new piece
-          update_in(board, [Access.key(:squares)], fn squares ->
-            squares
-            |> Map.delete(from)
-            |> Map.put(to, promoted_piece)
-          end)
-        else
-          {:error, :promotion_piece_required}
-        end
-    end
+            # Remove the pawn and add the new piece
+            update_in(board, [Access.key(:squares)], fn squares ->
+              squares
+              |> Map.delete(from)
+              |> Map.put(to, promoted_piece)
+            end)
+          else
+            {:error, :promotion_piece_required}
+          end
+      end
 
     # Handle error case
     if is_tuple(new_board) and elem(new_board, 0) == :error do
@@ -124,11 +131,12 @@ defmodule ChessApp.Games.Board do
       new_board = update_castling_rights(new_board, from, piece)
 
       # Reset en passant target on normal moves
-      new_board = if move_type != :double_push do
-        %{new_board | en_passant_target: nil}
-      else
-        new_board
-      end
+      new_board =
+        if move_type != :double_push do
+          %{new_board | en_passant_target: nil}
+        else
+          new_board
+        end
 
       # Update turn
       new_board = %{new_board | turn: opposite_color(board.turn)}
@@ -154,26 +162,46 @@ defmodule ChessApp.Games.Board do
     case {piece_type, file, rank} do
       # King moved
       {:king, 4, 0} when color == :white ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:white)],
-               %{kingside: false, queenside: false})
+        put_in(board, [Access.key(:castling_rights), Access.key(:white)], %{
+          kingside: false,
+          queenside: false
+        })
 
       {:king, 4, 7} when color == :black ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:black)],
-               %{kingside: false, queenside: false})
+        put_in(board, [Access.key(:castling_rights), Access.key(:black)], %{
+          kingside: false,
+          queenside: false
+        })
 
       # Kingside rook moved
       {:rook, 7, 0} when color == :white ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:white), Access.key(:kingside)], false)
+        put_in(
+          board,
+          [Access.key(:castling_rights), Access.key(:white), Access.key(:kingside)],
+          false
+        )
 
       {:rook, 7, 7} when color == :black ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:black), Access.key(:kingside)], false)
+        put_in(
+          board,
+          [Access.key(:castling_rights), Access.key(:black), Access.key(:kingside)],
+          false
+        )
 
       # Queenside rook moved
       {:rook, 0, 0} when color == :white ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:white), Access.key(:queenside)], false)
+        put_in(
+          board,
+          [Access.key(:castling_rights), Access.key(:white), Access.key(:queenside)],
+          false
+        )
 
       {:rook, 0, 7} when color == :black ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:black), Access.key(:queenside)], false)
+        put_in(
+          board,
+          [Access.key(:castling_rights), Access.key(:black), Access.key(:queenside)],
+          false
+        )
 
       # No castling rights affected
       _ ->
@@ -183,18 +211,20 @@ defmodule ChessApp.Games.Board do
 
   defp update_move_counters(board, {_, piece_type}, move_type) do
     # Reset halfmove clock on pawn moves and captures
-    halfmove_clock = if piece_type == :pawn || move_type == :capture || move_type == :en_passant do
-      0
-    else
-      board.halfmove_clock + 1
-    end
+    halfmove_clock =
+      if piece_type == :pawn || move_type == :capture || move_type == :en_passant do
+        0
+      else
+        board.halfmove_clock + 1
+      end
 
     # Increment fullmove number on black's turn
-    fullmove_number = if board.turn == :black do
-      board.fullmove_number + 1
-    else
-      board.fullmove_number
-    end
+    fullmove_number =
+      if board.turn == :black do
+        board.fullmove_number + 1
+      else
+        board.fullmove_number
+      end
 
     %{board | halfmove_clock: halfmove_clock, fullmove_number: fullmove_number}
   end

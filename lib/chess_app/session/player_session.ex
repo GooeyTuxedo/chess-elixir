@@ -12,19 +12,21 @@ defmodule ChessApp.Session.PlayerSession do
     player_session_id = Map.get(session, "player_session_id")
     player_nickname = Map.get(session, "player_nickname")
 
-    conn = if player_session_id do
-      conn
-    else
-      # Generate a random session ID if none exists
-      Plug.Conn.put_session(conn, "player_session_id", generate_session_id())
-    end
+    conn =
+      if player_session_id do
+        conn
+      else
+        # Generate a random session ID if none exists
+        Plug.Conn.put_session(conn, "player_session_id", generate_session_id())
+      end
 
-    conn = if player_nickname do
-      conn
-    else
-      # Generate a random nickname if none exists
-      Plug.Conn.put_session(conn, "player_nickname", generate_nickname())
-    end
+    conn =
+      if player_nickname do
+        conn
+      else
+        # Generate a random nickname if none exists
+        Plug.Conn.put_session(conn, "player_nickname", generate_nickname())
+      end
 
     conn
   end

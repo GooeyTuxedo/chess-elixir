@@ -5,6 +5,7 @@ defmodule ChessApp.Games.MoveValidator do
   """
 
   alias ChessApp.Games.Board
+
   alias ChessApp.Games.Validators.{
     PawnMoveValidator,
     KnightMoveValidator,
@@ -15,14 +16,21 @@ defmodule ChessApp.Games.MoveValidator do
   }
 
   @type position :: {0..7, 0..7}
-  @type move_type :: :normal | :capture | :double_push | :en_passant | :castle_kingside | :castle_queenside | :promotion
+  @type move_type ::
+          :normal
+          | :capture
+          | :double_push
+          | :en_passant
+          | :castle_kingside
+          | :castle_queenside
+          | :promotion
 
   @doc """
   Validates if a move is legal for the current board state.
   Returns {:ok, move_type} or {:error, reason}.
   """
   @spec validate_move(Board.t(), position(), position(), Board.color()) ::
-    {:ok, move_type()} | {:error, atom()}
+          {:ok, move_type()} | {:error, atom()}
   def validate_move(board, from, to, player_color) do
     with {:ok, piece} <- get_piece(board, from),
          true <- is_players_piece?(piece, player_color),
@@ -51,13 +59,15 @@ defmodule ChessApp.Games.MoveValidator do
         for file <- 0..7, rank <- 0..7, reduce: [] do
           acc ->
             to = {file, rank}
+
             case validate_move(board, position, to, color) do
               {:ok, _} -> [to | acc]
               _ -> acc
             end
         end
 
-      _ -> []
+      _ ->
+        []
     end
   end
 
@@ -81,10 +91,14 @@ defmodule ChessApp.Games.MoveValidator do
             {:ok, _} ->
               # Additionally verify the path is clear (doesn't apply to knights)
               is_path_clear?(board, from_pos, position, piece, :normal)
-            _ -> false
+
+            _ ->
+              false
           end
         end
-      _ -> false
+
+      _ ->
+        false
     end)
   end
 
@@ -159,7 +173,15 @@ defmodule ChessApp.Games.MoveValidator do
       true
     else
       if Board.piece_at(board, {file, rank}) == nil do
-        check_path_clear(board, file + file_step, rank + rank_step, to_file, to_rank, file_step, rank_step)
+        check_path_clear(
+          board,
+          file + file_step,
+          rank + rank_step,
+          to_file,
+          to_rank,
+          file_step,
+          rank_step
+        )
       else
         false
       end
@@ -188,9 +210,11 @@ defmodule ChessApp.Games.MoveValidator do
 
   defp simulate_move(board, from, to) do
     piece = Board.piece_at(board, from)
-    new_squares = board.squares
-                  |> Map.delete(from)
-                  |> Map.put(to, piece)
+
+    new_squares =
+      board.squares
+      |> Map.delete(from)
+      |> Map.put(to, piece)
 
     new_board = %{board | squares: new_squares}
     {piece, new_board}

@@ -10,11 +10,13 @@ defmodule ChessApp.Games.Validators.QueenMoveValidator do
   Returns {:ok, move_type} or {:error, reason}.
   """
   @spec validate({integer, integer}, {integer, integer}, any()) ::
-    {:ok, atom()} | {:error, atom()}
+          {:ok, atom()} | {:error, atom()}
   def validate(from, to, target_piece) do
     # Queen moves are valid if they would be valid for either a bishop or a rook
     case BishopMoveValidator.validate(from, to, target_piece) do
-      {:ok, move_type} -> {:ok, move_type}
+      {:ok, move_type} ->
+        {:ok, move_type}
+
       {:error, _} ->
         case RookMoveValidator.validate(from, to, target_piece) do
           {:ok, move_type} -> {:ok, move_type}

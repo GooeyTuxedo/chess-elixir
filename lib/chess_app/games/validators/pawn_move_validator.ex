@@ -11,7 +11,7 @@ defmodule ChessApp.Games.Validators.PawnMoveValidator do
   Returns {:ok, move_type} or {:error, reason}.
   """
   @spec validate(Board.t(), {integer, integer}, {integer, integer}, Board.color()) ::
-    {:ok, atom()} | {:error, atom()}
+          {:ok, atom()} | {:error, atom()}
   def validate(board, {from_file, from_rank}, {to_file, to_rank}, color) do
     target_piece = Board.piece_at(board, {to_file, to_rank})
 
@@ -32,8 +32,8 @@ defmodule ChessApp.Games.Validators.PawnMoveValidator do
 
       # Forward move (2 squares) from starting position
       file_diff == 0 && rank_diff == 2 * direction &&
-      from_rank == start_rank && target_piece == nil &&
-      Board.piece_at(board, {from_file, from_rank + direction}) == nil ->
+        from_rank == start_rank && target_piece == nil &&
+          Board.piece_at(board, {from_file, from_rank + direction}) == nil ->
         {:ok, :double_push}
 
       # Diagonal capture
@@ -46,7 +46,7 @@ defmodule ChessApp.Games.Validators.PawnMoveValidator do
 
       # En passant capture
       file_diff == 1 && rank_diff == direction && target_piece == nil &&
-      board.en_passant_target == {to_file, to_rank} ->
+          board.en_passant_target == {to_file, to_rank} ->
         {:ok, :en_passant}
 
       true ->

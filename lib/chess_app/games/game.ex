@@ -16,7 +16,21 @@ defmodule ChessApp.Games.Game do
   @doc false
   def changeset(game, attrs) do
     game
-    |> cast(attrs, [:white_player_session, :black_player_session, :status, :winner, :started_at, :ended_at])
-    |> validate_required([:white_player_session, :black_player_session, :status, :winner, :started_at, :ended_at])
+    |> cast(attrs, [
+      :white_player_session,
+      :black_player_session,
+      :status,
+      :winner,
+      :started_at,
+      :ended_at
+    ])
+    |> validate_required([
+      :white_player_session,
+      :black_player_session,
+      :status,
+      :winner,
+      :started_at,
+      :ended_at
+    ])
   end
 end

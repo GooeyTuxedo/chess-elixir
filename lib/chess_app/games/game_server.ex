@@ -38,17 +38,19 @@ defmodule ChessApp.Games.GameServer do
   def init(opts) do
     game_id = Keyword.fetch!(opts, :game_id)
 
-    {:ok, %{
-      game_id: game_id,
-      board: Board.new(),
-      players: %{
-        white: nil, # Will store {session_id, nickname} tuples
-        black: nil
-      },
-      status: :waiting_for_players,
-      move_history: [],
-      game_result: nil
-    }}
+    {:ok,
+     %{
+       game_id: game_id,
+       board: Board.new(),
+       players: %{
+         # Will store {session_id, nickname} tuples
+         white: nil,
+         black: nil
+       },
+       status: :waiting_for_players,
+       move_history: [],
+       game_result: nil
+     }}
   end
 
   @impl true
@@ -150,11 +152,12 @@ defmodule ChessApp.Games.GameServer do
           {:reply, {:error, reason}, state}
       end
     else
-      reason = cond do
-        !player_color -> :not_a_player
-        player_color != state.board.turn -> :not_your_turn
-        true -> :unknown_error
-      end
+      reason =
+        cond do
+          !player_color -> :not_a_player
+          player_color != state.board.turn -> :not_your_turn
+          true -> :unknown_error
+        end
 
       {:reply, {:error, reason}, state}
     end
@@ -167,21 +170,23 @@ defmodule ChessApp.Games.GameServer do
     game_status = check_game_status(new_board)
 
     # Determine game result if the game has ended
-    game_result = case game_status do
-      :checkmate_white -> %{winner: :black, reason: :checkmate}
-      :checkmate_black -> %{winner: :white, reason: :checkmate}
-      :stalemate -> %{winner: nil, reason: :stalemate}
-      :draw_insufficient_material -> %{winner: nil, reason: :insufficient_material}
-      :draw_fifty_move_rule -> %{winner: nil, reason: :fifty_move_rule}
-      _ -> nil
-    end
+    game_result =
+      case game_status do
+        :checkmate_white -> %{winner: :black, reason: :checkmate}
+        :checkmate_black -> %{winner: :white, reason: :checkmate}
+        :stalemate -> %{winner: nil, reason: :stalemate}
+        :draw_insufficient_material -> %{winner: nil, reason: :insufficient_material}
+        :draw_fifty_move_rule -> %{winner: nil, reason: :fifty_move_rule}
+        _ -> nil
+      end
 
     # Update state
-    new_state = %{state |
-      board: new_board,
-      status: game_status,
-      move_history: [move | state.move_history],
-      game_result: game_result
+    new_state = %{
+      state
+      | board: new_board,
+        status: game_status,
+        move_history: [move | state.move_history],
+        game_result: game_result
     }
 
     # Broadcast the move and game result if the game ended
@@ -232,18 +237,21 @@ defmodule ChessApp.Games.GameServer do
     cond do
       # Checkmate - current player has no legal moves and is in check
       (current_player == :white && white_in_check && has_no_legal_moves?(board, :white)) ||
-      (current_player == :black && black_in_check && has_no_legal_moves?(board, :black)) ->
+          (current_player == :black && black_in_check && has_no_legal_moves?(board, :black)) ->
         if current_player == :white, do: :checkmate_white, else: :checkmate_black
 
       # Stalemate - current player has no legal moves and is not in check
       has_no_legal_moves?(board, current_player) &&
-      ((current_player == :white && !white_in_check) ||
-       (current_player == :black && !black_in_check)) ->
+          ((current_player == :white && !white_in_check) ||
+             (current_player == :black && !black_in_check)) ->
         :stalemate
 
       # Check - king is under attack
-      white_in_check -> :check_white
-      black_in_check -> :check_black
+      white_in_check ->
+        :check_white
+
+      black_in_check ->
+        :check_black
 
       # Insufficient material
       is_draw_by_insufficient_material?(board) ->
@@ -278,7 +286,9 @@ defmodule ChessApp.Games.GameServer do
             end
           end
         )
-      _ -> false
+
+      _ ->
+        false
     end)
   end
 
@@ -295,23 +305,28 @@ defmodule ChessApp.Games.GameServer do
 
   defp is_draw_by_insufficient_material?(board) do
     # Count pieces
-    {white_pieces, black_pieces} = Enum.reduce(board.squares, {%{}, %{}}, fn
-      {_, {color, piece_type}}, {white_count, black_count} ->
-        if color == :white do
-          {Map.update(white_count, piece_type, 1, &(&1 + 1)), black_count}
-        else
-          {white_count, Map.update(black_count, piece_type, 1, &(&1 + 1))}
-        end
-    end)
+    {white_pieces, black_pieces} =
+      Enum.reduce(board.squares, {%{}, %{}}, fn
+        {_, {color, piece_type}}, {white_count, black_count} ->
+          if color == :white do
+            {Map.update(white_count, piece_type, 1, &(&1 + 1)), black_count}
+          else
+            {white_count, Map.update(black_count, piece_type, 1, &(&1 + 1))}
+          end
+      end)
 
     # King vs King
-    (map_size(white_pieces) == 1 && map_size(black_pieces) == 1) ||
     # King + Knight vs King
-    (map_size(white_pieces) == 2 && Map.has_key?(white_pieces, :knight) && map_size(black_pieces) == 1) ||
-    (map_size(black_pieces) == 2 && Map.has_key?(black_pieces, :knight) && map_size(white_pieces) == 1) ||
     # King + Bishop vs King
-    (map_size(white_pieces) == 2 && Map.has_key?(white_pieces, :bishop) && map_size(black_pieces) == 1) ||
-    (map_size(black_pieces) == 2 && Map.has_key?(black_pieces, :bishop) && map_size(white_pieces) == 1)
+    (map_size(white_pieces) == 1 && map_size(black_pieces) == 1) ||
+      (map_size(white_pieces) == 2 && Map.has_key?(white_pieces, :knight) &&
+         map_size(black_pieces) == 1) ||
+      (map_size(black_pieces) == 2 && Map.has_key?(black_pieces, :knight) &&
+         map_size(white_pieces) == 1) ||
+      (map_size(white_pieces) == 2 && Map.has_key?(white_pieces, :bishop) &&
+         map_size(black_pieces) == 1) ||
+      (map_size(black_pieces) == 2 && Map.has_key?(black_pieces, :bishop) &&
+         map_size(white_pieces) == 1)
   end
 
   defp opposite_color(:white), do: :black

@@ -12,7 +12,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
             <div class="flex justify-between items-center">
               <div>
                 <span class="text-xs">WHITE</span>
-                <p class="mt-1 text-sm"><%= display_player(@players.white) %></p>
+                <p class="mt-1 text-sm">{display_player(@players.white)}</p>
               </div>
               <%= if @current_turn == :white do %>
                 <div class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
@@ -24,7 +24,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
             <div class="flex justify-between items-center">
               <div>
                 <span class="text-xs">BLACK</span>
-                <p class="mt-1 text-sm"><%= display_player(@players.black) %></p>
+                <p class="mt-1 text-sm">{display_player(@players.black)}</p>
               </div>
               <%= if @current_turn == :black do %>
                 <div class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
@@ -34,7 +34,10 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
         </div>
 
         <div class="mt-2 text-center text-sm">
-          <p>You are playing as: <span class="text-purple-400 font-bold"><%= display_color(@player_color) %></span></p>
+          <p>
+            You are playing as:
+            <span class="text-purple-400 font-bold">{display_color(@player_color)}</span>
+          </p>
 
           <%= if @status == :waiting_for_players do %>
             <div class="game-notification mt-4">
@@ -50,7 +53,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
 
           <%= if @error_message do %>
             <div class="game-notification alert mt-4">
-              <%= @error_message %>
+              {@error_message}
             </div>
           <% end %>
 
@@ -70,21 +73,23 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
         <div class="chess-board grid grid-cols-8 border-4 border-gray-800 w-96 h-96 mx-auto">
           <%= for rank <- if @player_color == :black, do: 0..7, else: 7..0 do %>
             <%= for file <- if @player_color == :black, do: 7..0, else: 0..7 do %>
-              <div class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} w-12 h-12 flex items-center justify-center"}
-                   phx-click="select_square"
-                   phx-value-file={file}
-                   phx-value-rank={rank}
-                   data-file={file}
-                   data-rank={rank}>
-                <%= render_piece(@board.squares[{file, rank}], @status) %>
-
-                <!-- Coordinate labels (optional) -->
+              <div
+                class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} w-12 h-12 flex items-center justify-center"}
+                phx-click="select_square"
+                phx-value-file={file}
+                phx-value-rank={rank}
+                data-file={file}
+                data-rank={rank}
+              >
+                {render_piece(@board.squares[{file, rank}], @status)}
+                
+    <!-- Coordinate labels (optional) -->
                 <div class="absolute text-xs opacity-30 bottom-0 right-1">
                   <%= if rank == (if @player_color == :black, do: 7, else: 0) do %>
-                    <%= file_to_letter(file) %>
+                    {file_to_letter(file)}
                   <% end %>
                   <%= if file == (if @player_color == :black, do: 0, else: 7) do %>
-                    <%= rank + 1 %>
+                    {rank + 1}
                   <% end %>
                 </div>
               </div>
@@ -109,23 +114,19 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
         <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
           <div class="bg-gray-900 p-8 border-4 border-purple-700 rounded-lg shadow-lg max-w-md w-full font-pixel">
             <h2 class="text-xl mb-6 text-center text-purple-400">
-              <%= game_result_title(@game_result) %>
+              {game_result_title(@game_result)}
             </h2>
 
             <p class="text-center mb-8 text-sm">
-              <%= game_result_message(@game_result, @players) %>
+              {game_result_message(@game_result, @players)}
             </p>
 
             <div class="flex justify-center space-x-4">
-              <button
-                class="game-button"
-                phx-click="play_again">
+              <button class="game-button" phx-click="play_again">
                 Play Again
               </button>
 
-              <a
-                href="/"
-                class="game-button bg-gray-700 hover:bg-gray-600">
+              <a href="/" class="game-button bg-gray-700 hover:bg-gray-600">
                 Back to Lobby
               </a>
             </div>
@@ -143,9 +144,10 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
                 <button
                   class="p-4 border-2 border-gray-600 rounded-lg hover:bg-gray-800 transition-all"
                   phx-click="promote"
-                  phx-value-piece={piece}>
+                  phx-value-piece={piece}
+                >
                   <div class="text-4xl">
-                    <%= promotion_piece_symbol(@player_color, piece) %>
+                    {promotion_piece_symbol(@player_color, piece)}
                   </div>
                 </button>
               <% end %>
@@ -190,36 +192,39 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
   end
 
   def render_piece(nil, _status), do: ""
+
   def render_piece({color, piece_type} = piece, status) do
-    unicode = case {color, piece_type} do
-      {:white, :king} -> "♔"
-      {:white, :queen} -> "♕"
-      {:white, :rook} -> "♖"
-      {:white, :bishop} -> "♗"
-      {:white, :knight} -> "♘"
-      {:white, :pawn} -> "♙"
-      {:black, :king} -> "♚"
-      {:black, :queen} -> "♛"
-      {:black, :rook} -> "♜"
-      {:black, :bishop} -> "♝"
-      {:black, :knight} -> "♞"
-      {:black, :pawn} -> "♟︎"
-    end
+    unicode =
+      case {color, piece_type} do
+        {:white, :king} -> "♔"
+        {:white, :queen} -> "♕"
+        {:white, :rook} -> "♖"
+        {:white, :bishop} -> "♗"
+        {:white, :knight} -> "♘"
+        {:white, :pawn} -> "♙"
+        {:black, :king} -> "♚"
+        {:black, :queen} -> "♛"
+        {:black, :rook} -> "♜"
+        {:black, :bishop} -> "♝"
+        {:black, :knight} -> "♞"
+        {:black, :pawn} -> "♟︎"
+      end
 
     text_color = if color == :white, do: "text-white", else: "text-black"
 
     # Add a background highlight for kings in check
-    check_highlight = case {piece, status} do
-      {{:white, :king}, :check_white} -> "bg-red-500 rounded-full"
-      {{:black, :king}, :check_black} -> "bg-red-500 rounded-full"
-      _ -> ""
-    end
+    check_highlight =
+      case {piece, status} do
+        {{:white, :king}, :check_white} -> "bg-red-500 rounded-full"
+        {{:black, :king}, :check_black} -> "bg-red-500 rounded-full"
+        _ -> ""
+      end
 
     assigns = %{unicode: unicode, text_color: text_color, check_highlight: check_highlight}
 
     ~H"""
     <div class={"piece #{@text_color} #{@check_highlight} text-4xl"}>
-      <%= @unicode %>
+      {@unicode}
     </div>
     """
   end
@@ -270,22 +275,23 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
   def player_nickname({_session_id, nickname}), do: nickname
 
   def promotion_piece_symbol(color, piece_type) do
-    unicode = case {color, piece_type} do
-      {:white, :queen} -> "♕"
-      {:white, :rook} -> "♖"
-      {:white, :bishop} -> "♗"
-      {:white, :knight} -> "♘"
-      {:black, :queen} -> "♛"
-      {:black, :rook} -> "♜"
-      {:black, :bishop} -> "♝"
-      {:black, :knight} -> "♞"
-    end
+    unicode =
+      case {color, piece_type} do
+        {:white, :queen} -> "♕"
+        {:white, :rook} -> "♖"
+        {:white, :bishop} -> "♗"
+        {:white, :knight} -> "♘"
+        {:black, :queen} -> "♛"
+        {:black, :rook} -> "♜"
+        {:black, :bishop} -> "♝"
+        {:black, :knight} -> "♞"
+      end
 
     assigns = %{unicode: unicode}
 
     ~H"""
     <div class="text-4xl">
-      <%= @unicode %>
+      {@unicode}
     </div>
     """
   end

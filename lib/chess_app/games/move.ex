@@ -18,6 +18,13 @@ defmodule ChessApp.Games.Move do
   def changeset(move, attrs) do
     move
     |> cast(attrs, [:player_session, :piece, :from_position, :to_position, :notation, :timestamp])
-    |> validate_required([:player_session, :piece, :from_position, :to_position, :notation, :timestamp])
+    |> validate_required([
+      :player_session,
+      :piece,
+      :from_position,
+      :to_position,
+      :notation,
+      :timestamp
+    ])
   end
 end
