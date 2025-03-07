@@ -2,11 +2,7 @@ import Config
 
 # Configure your database
 config :chess_app, ChessApp.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "chess_app_dev",
-  stacktrace: true,
+  url: System.get_env("DATABASE_URL") || "postgres://postgres:postgres@localhost/chess_app_dev",
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 

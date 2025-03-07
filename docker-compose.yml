@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chess_app_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  chess:
+    build:
+      context: .
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres/chess_app_dev
+      SECRET_KEY_BASE: "some_dev_key_thats_at_least_64_bytes_long_to_keep_phoenix_happy_in_dev"
+      PHX_HOST: "localhost"
+    ports:
+      - "4000:4000"
+    volumes:
+      - .:/app
+      - deps:/app/deps
+      - build:/app/_build
+
+volumes:
+  postgres_data:
+  deps:
+  build:
