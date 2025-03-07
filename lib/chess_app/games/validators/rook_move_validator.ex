@@ -3,6 +3,10 @@ defmodule ChessApp.Games.Validators.RookMoveValidator do
   Validates moves specific to rooks, which move horizontally or vertically.
   """
 
+  def validate(_from_pos, nil, _target_piece) do
+    {:error, :invalid_rook_move}
+  end
+
   @doc """
   Validates rook moves according to chess rules.
   Returns {:ok, move_type} or {:error, reason}.

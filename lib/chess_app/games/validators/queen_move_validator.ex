@@ -5,6 +5,10 @@ defmodule ChessApp.Games.Validators.QueenMoveValidator do
 
   alias ChessApp.Games.Validators.{BishopMoveValidator, RookMoveValidator}
 
+  def validate(_from_pos, nil, _target_piece) do
+    {:error, :invalid_queen_move}
+  end
+
   @doc """
   Validates queen moves according to chess rules.
   Returns {:ok, move_type} or {:error, reason}.

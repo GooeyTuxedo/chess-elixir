@@ -5,6 +5,10 @@ defmodule ChessApp.Games.Validators.KingMoveValidator do
 
   alias ChessApp.Games.{Board, MoveValidator}
 
+  def validate(_board, _from_pos, nil, _color) do
+    {:error, :invalid_king_move}
+  end
+
   @doc """
   Validates king moves according to chess rules.
   Returns {:ok, move_type} or {:error, reason}.

@@ -3,6 +3,10 @@ defmodule ChessApp.Games.Validators.BishopMoveValidator do
   Validates moves specific to bishops, which move diagonally.
   """
 
+  def validate(_from_pos, nil, _target_piece) do
+    {:error, :invalid_bishop_move}
+  end
+
   @doc """
   Validates bishop moves according to chess rules.
   Returns {:ok, move_type} or {:error, reason}.

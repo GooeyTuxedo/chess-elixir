@@ -3,6 +3,10 @@ defmodule ChessApp.Games.Validators.KnightMoveValidator do
   Validates moves specific to knights, which move in an L-shape.
   """
 
+  def validate(_from_pos, nil, _target_piece) do
+    {:error, :invalid_knight_move}
+  end
+
   @doc """
   Validates knight moves according to chess rules.
   Returns {:ok, move_type} or {:error, reason}.
