@@ -42,6 +42,163 @@ defmodule ChessApp.Games.Board do
     end
   end
 
+  @doc """
+  Makes a move on the board.
+  Returns {:ok, new_board} or {:error, reason}.
+  """
+  def make_move(board, from, to, move_type, promotion_piece \\ nil) do
+    piece = piece_at(board, from)
+
+    # Apply the move
+    new_board = case move_type do
+      :normal ->
+        apply_normal_move(board, from, to)
+
+      :capture ->
+        apply_normal_move(board, from, to)
+
+      :double_push ->
+        # Set en passant target
+        {file, rank} = to
+        direction = if elem(piece, 0) == :white, do: -1, else: 1
+        en_passant_target = {file, rank + direction}
+
+        board
+        |> apply_normal_move(from, to)
+        |> Map.put(:en_passant_target, en_passant_target)
+
+      :en_passant ->
+        # Remove the captured pawn
+        {to_file, to_rank} = to
+        direction = if elem(piece, 0) == :white, do: -1, else: 1
+        captured_position = {to_file, to_rank - direction}
+
+        board
+        |> apply_normal_move(from, to)
+        |> update_in([Access.key(:squares)], &Map.delete(&1, captured_position))
+
+      :castle_kingside ->
+        # Move king and rook
+        {_, king_rank} = from
+        rook_from = {7, king_rank}
+        rook_to = {5, king_rank}
+
+        board
+        |> apply_normal_move(from, to)  # Move king
+        |> apply_normal_move(rook_from, rook_to)  # Move rook
+
+      :castle_queenside ->
+        # Move king and rook
+        {_, king_rank} = from
+        rook_from = {0, king_rank}
+        rook_to = {3, king_rank}
+
+        board
+        |> apply_normal_move(from, to)  # Move king
+        |> apply_normal_move(rook_from, rook_to)  # Move rook
+
+      :promotion ->
+        # Ensure a promotion piece was provided
+        if promotion_piece do
+          # Get the color from the original piece
+          {color, _} = piece
+          # Create the new piece with the provided promotion piece type
+          promoted_piece = {color, promotion_piece}
+
+          # Remove the pawn and add the new piece
+          update_in(board, [Access.key(:squares)], fn squares ->
+            squares
+            |> Map.delete(from)
+            |> Map.put(to, promoted_piece)
+          end)
+        else
+          {:error, :promotion_piece_required}
+        end
+    end
+
+    # Handle error case
+    if is_tuple(new_board) and elem(new_board, 0) == :error do
+      new_board
+    else
+      # Update castling rights if king or rook moved
+      new_board = update_castling_rights(new_board, from, piece)
+
+      # Reset en passant target on normal moves
+      new_board = if move_type != :double_push do
+        %{new_board | en_passant_target: nil}
+      else
+        new_board
+      end
+
+      # Update turn
+      new_board = %{new_board | turn: opposite_color(board.turn)}
+
+      # Update move counters
+      new_board = update_move_counters(new_board, piece, move_type)
+
+      {:ok, new_board}
+    end
+  end
+
+  defp apply_normal_move(board, from, to) do
+    piece = piece_at(board, from)
+
+    update_in(board, [Access.key(:squares)], fn squares ->
+      squares
+      |> Map.delete(from)
+      |> Map.put(to, piece)
+    end)
+  end
+
+  defp update_castling_rights(board, {file, rank}, {color, piece_type}) do
+    case {piece_type, file, rank} do
+      # King moved
+      {:king, 4, 0} when color == :white ->
+        put_in(board, [Access.key(:castling_rights), Access.key(:white)],
+               %{kingside: false, queenside: false})
+
+      {:king, 4, 7} when color == :black ->
+        put_in(board, [Access.key(:castling_rights), Access.key(:black)],
+               %{kingside: false, queenside: false})
+
+      # Kingside rook moved
+      {:rook, 7, 0} when color == :white ->
+        put_in(board, [Access.key(:castling_rights), Access.key(:white), Access.key(:kingside)], false)
+
+      {:rook, 7, 7} when color == :black ->
+        put_in(board, [Access.key(:castling_rights), Access.key(:black), Access.key(:kingside)], false)
+
+      # Queenside rook moved
+      {:rook, 0, 0} when color == :white ->
+        put_in(board, [Access.key(:castling_rights), Access.key(:white), Access.key(:queenside)], false)
+
+      {:rook, 0, 7} when color == :black ->
+        put_in(board, [Access.key(:castling_rights), Access.key(:black), Access.key(:queenside)], false)
+
+      # No castling rights affected
+      _ ->
+        board
+    end
+  end
+
+  defp update_move_counters(board, {_, piece_type}, move_type) do
+    # Reset halfmove clock on pawn moves and captures
+    halfmove_clock = if piece_type == :pawn || move_type == :capture || move_type == :en_passant do
+      0
+    else
+      board.halfmove_clock + 1
+    end
+
+    # Increment fullmove number on black's turn
+    fullmove_number = if board.turn == :black do
+      board.fullmove_number + 1
+    else
+      board.fullmove_number
+    end
+
+    %{board | halfmove_clock: halfmove_clock, fullmove_number: fullmove_number}
+  end
+
   defp initial_position do
     # Create a map with starting positions for all pieces
     %{}
@@ -92,140 +249,6 @@ defmodule ChessApp.Games.Board do
     ]
     |> Map.new()
     |> Map.merge(squares)
-  end
-
-  @doc """
-  Makes a move on the board.
-  Returns {:ok, new_board} or {:error, reason}.
-  """
-  def make_move(board, from, to, move_type) do
-    piece = piece_at(board, from)
-
-    # Apply the move
-    new_board = case move_type do
-      :normal ->
-        apply_normal_move(board, from, to)
-
-      :capture ->
-        apply_normal_move(board, from, to)
-
-      :double_push ->
-        # Set en passant target
-        {file, rank} = to
-        direction = if elem(piece, 0) == :white, do: -1, else: 1
-        en_passant_target = {file, rank + direction}
-
-        board
-        |> apply_normal_move(from, to)
-        |> Map.put(:en_passant_target, en_passant_target)
-
-      :en_passant ->
-        # Remove the captured pawn
-        {to_file, to_rank} = to
-        direction = if elem(piece, 0) == :white, do: -1, else: 1
-        captured_position = {to_file, to_rank - direction}
-
-        board
-        |> apply_normal_move(from, to)
-        |> update_in([Access.key(:squares)], &Map.delete(&1, captured_position))
-
-      :castle_kingside ->
-        # Move king and rook
-        {_, king_rank} = from
-        rook_from = {7, king_rank}
-        rook_to = {5, king_rank}
-
-        board
-        |> apply_normal_move(from, to)  # Move king
-        |> apply_normal_move(rook_from, rook_to)  # Move rook
-
-      :castle_queenside ->
-        # Move king and rook
-        {_, king_rank} = from
-        rook_from = {0, king_rank}
-        rook_to = {3, king_rank}
-
-        board
-        |> apply_normal_move(from, to)  # Move king
-        |> apply_normal_move(rook_from, rook_to)  # Move rook
-    end
-
-    # Update castling rights if king or rook moved
-    new_board = update_castling_rights(new_board, from, piece)
-
-    # Reset en passant target on normal moves
-    new_board = if move_type != :double_push do
-      %{new_board | en_passant_target: nil}
-    else
-      new_board
-    end
-
-    # Update turn
-    new_board = %{new_board | turn: opposite_color(board.turn)}
-
-    # Update move counters
-    new_board = update_move_counters(new_board, piece, move_type)
-
-    {:ok, new_board}
-  end
-
-  defp apply_normal_move(board, from, to) do
-    piece = piece_at(board, from)
-
-    update_in(board, [Access.key(:squares)], fn squares ->
-      squares
-      |> Map.delete(from)
-      |> Map.put(to, piece)
-    end)
-  end
-
-  defp update_castling_rights(board, {file, rank}, {color, piece_type}) do
-    case {piece_type, file, rank} do
-      # King moved
-      {:king, 4, 0} when color == :white ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:white)],
-               %{kingside: false, queenside: false})
-
-      {:king, 4, 7} when color == :black ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:black)],
-               %{kingside: false, queenside: false})
-
-      # Kingside rook moved
-      {:rook, 7, 0} when color == :white ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:white), Access.key(:kingside)], false)
-
-      {:rook, 7, 7} when color == :black ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:black), Access.key(:kingside)], false)
-
-      # Queenside rook moved
-      {:rook, 0, 0} when color == :white ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:white), Access.key(:queenside)], false)
-
-      {:rook, 0, 7} when color == :black ->
-        put_in(board, [Access.key(:castling_rights), Access.key(:black), Access.key(:queenside)], false)
-
-      # No castling rights affected
-      _ ->
-        board
-    end
-  end
-
-  defp update_move_counters(board, {_, piece_type}, move_type) do
-    # Reset halfmove clock on pawn moves and captures
-    halfmove_clock = if piece_type == :pawn || move_type == :capture do
-      0
-    else
-      board.halfmove_clock + 1
-    end
-
-    # Increment fullmove number on black's turn
-    fullmove_number = if board.turn == :black do
-      board.fullmove_number + 1
-    else
-      board.fullmove_number
-    end
-
-    %{board | halfmove_clock: halfmove_clock, fullmove_number: fullmove_number}
   end
 
   defp opposite_color(:white), do: :black

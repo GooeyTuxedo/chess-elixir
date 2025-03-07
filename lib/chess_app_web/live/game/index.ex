@@ -22,7 +22,7 @@ defmodule ChessAppWeb.GameLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto">
+    <div class="container mx-auto p-4">
       <h1 class="text-3xl font-bold mb-4">Chess Game</h1>
 
       <div class="mb-4">

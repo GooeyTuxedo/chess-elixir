@@ -1,9 +1,6 @@
-# lib/chess_app/games/game_server.ex
 defmodule ChessApp.Games.GameServer do
   use GenServer
-  alias ChessApp.Games.Board
-
-  alias ChessApp.Games.MoveValidator
+  alias ChessApp.Games.{Board, MoveValidator}
 
   # Client API
 
@@ -27,8 +24,8 @@ defmodule ChessApp.Games.GameServer do
     GenServer.call(via_tuple(game_id), {:join_game, player_session_id, player_nickname})
   end
 
-  def make_move(game_id, player_session_id, from, to) do
-    GenServer.call(via_tuple(game_id), {:make_move, player_session_id, from, to})
+  def make_move(game_id, player_session_id, from, to, promotion_piece \\ nil) do
+    GenServer.call(via_tuple(game_id), {:make_move, player_session_id, from, to, promotion_piece})
   end
 
   def get_state(game_id) do
@@ -49,7 +46,8 @@ defmodule ChessApp.Games.GameServer do
         black: nil
       },
       status: :waiting_for_players,
-      move_history: []
+      move_history: [],
+      game_result: nil
     }}
   end
 
@@ -92,72 +90,48 @@ defmodule ChessApp.Games.GameServer do
 
   @impl true
   def handle_call(:get_state, _from, state) do
+    # Add current_turn to the state map that gets returned
     game_info = %{
       game_id: state.game_id,
       board: state.board,
       players: state.players,
       status: state.status,
       current_turn: state.board.turn,
-      move_history: state.move_history
+      move_history: state.move_history,
+      game_result: state.game_result
     }
 
     {:reply, game_info, state}
   end
 
-# Inside handle_call for make_move
-@impl true
-def handle_call({:make_move, player_session_id, from, to}, _from, state) do
-  # ... existing code for move validation and execution
-
-  # Check for game end conditions
-  game_status = check_game_status(new_board)
-
-  # Determine game result if the game has ended
-  game_result = case game_status do
-    :checkmate_white -> %{winner: :black, reason: :checkmate}
-    :checkmate_black -> %{winner: :white, reason: :checkmate}
-    :stalemate -> %{winner: nil, reason: :stalemate}
-    :draw_insufficient_material -> %{winner: nil, reason: :insufficient_material}
-    :draw_fifty_move_rule -> %{winner: nil, reason: :fifty_move_rule}
-    _ -> nil
-  end
-
-  # Update state
-  new_state = %{state |
-    board: new_board,
-    status: game_status,
-    move_history: [move | state.move_history],
-    game_result: game_result
-  }
-
-  # Broadcast the move and game result if the game ended
-  if game_result do
-    Phoenix.PubSub.broadcast(
-      ChessApp.PubSub,
-      "game:#{state.game_id}",
-      {:game_over, game_result, new_state}
-    )
-  else
-    Phoenix.PubSub.broadcast(
-      ChessApp.PubSub,
-      "game:#{state.game_id}",
-      {:move_made, move, new_state}
-    )
-  end
-
-  {:reply, {:ok, move_type}, new_state}
-end
-
   @impl true
-  def handle_call({:make_move, player_session_id, from, to}, _from, state) do
+  def handle_call({:make_move, player_session_id, from, to, promotion_piece}, _from, state) do
     player_color = get_player_color(state, player_session_id)
 
     # Check if it's a valid player and it's their turn
     if player_color && player_color == state.board.turn do
       # Validate the move
       case MoveValidator.validate_move(state.board, from, to, player_color) do
+        {:ok, :promotion} when promotion_piece != nil ->
+          # Execute promotion move
+          {:ok, new_board} = Board.make_move(state.board, from, to, :promotion, promotion_piece)
+
+          # Record the move
+          move = %{
+            from: from,
+            to: to,
+            piece: Board.piece_at(state.board, from),
+            move_type: :promotion,
+            promotion_piece: promotion_piece,
+            player_color: player_color,
+            timestamp: DateTime.utc_now()
+          }
+
+          # Handle rest of move similar to other moves
+          handle_move_result(state, new_board, move)
+
         {:ok, move_type} ->
-          # Execute the move
+          # Execute the standard move
           {:ok, new_board} = Board.make_move(state.board, from, to, move_type)
 
           # Record the move
@@ -170,43 +144,7 @@ end
             timestamp: DateTime.utc_now()
           }
 
-          # Check for game end conditions
-          game_status = check_game_status(new_board)
-
-          # Determine game result if the game has ended
-          game_result = case game_status do
-            :checkmate_white -> %{winner: :black, reason: :checkmate}
-            :checkmate_black -> %{winner: :white, reason: :checkmate}
-            :stalemate -> %{winner: nil, reason: :stalemate}
-            :draw_insufficient_material -> %{winner: nil, reason: :insufficient_material}
-            :draw_fifty_move_rule -> %{winner: nil, reason: :fifty_move_rule}
-            _ -> nil
-          end
-
-          # Update state
-          new_state = %{state |
-            board: new_board,
-            status: game_status,
-            move_history: [move | state.move_history],
-            game_result: game_result
-          }
-
-          # Broadcast the move and game result if the game ended
-          if game_result do
-            Phoenix.PubSub.broadcast(
-              ChessApp.PubSub,
-              "game:#{state.game_id}",
-              {:game_over, game_result, new_state}
-            )
-          else
-            Phoenix.PubSub.broadcast(
-              ChessApp.PubSub,
-              "game:#{state.game_id}",
-              {:move_made, move, new_state}
-            )
-          end
-
-          {:reply, {:ok, move_type}, new_state}
+          handle_move_result(state, new_board, move)
 
         {:error, reason} ->
           {:reply, {:error, reason}, state}
@@ -222,8 +160,47 @@ end
     end
   end
 
-
   # Helper functions
+
+  defp handle_move_result(state, new_board, move) do
+    # Check for game end conditions
+    game_status = check_game_status(new_board)
+
+    # Determine game result if the game has ended
+    game_result = case game_status do
+      :checkmate_white -> %{winner: :black, reason: :checkmate}
+      :checkmate_black -> %{winner: :white, reason: :checkmate}
+      :stalemate -> %{winner: nil, reason: :stalemate}
+      :draw_insufficient_material -> %{winner: nil, reason: :insufficient_material}
+      :draw_fifty_move_rule -> %{winner: nil, reason: :fifty_move_rule}
+      _ -> nil
+    end
+
+    # Update state
+    new_state = %{state |
+      board: new_board,
+      status: game_status,
+      move_history: [move | state.move_history],
+      game_result: game_result
+    }
+
+    # Broadcast the move and game result if the game ended
+    if game_result do
+      Phoenix.PubSub.broadcast(
+        ChessApp.PubSub,
+        "game:#{state.game_id}",
+        {:game_over, game_result, new_state}
+      )
+    else
+      Phoenix.PubSub.broadcast(
+        ChessApp.PubSub,
+        "game:#{state.game_id}",
+        {:move_made, move, new_state}
+      )
+    end
+
+    {:reply, {:ok, move.move_type}, new_state}
+  end
 
   defp via_tuple(game_id) do
     {:via, Registry, {ChessApp.GameRegistry, game_id}}
@@ -303,49 +280,14 @@ end
     end)
   end
 
-  defp find_king(board, color) do
-    Enum.find_value(board.squares, fn
-      {{file, rank}, {^color, :king}} -> {file, rank}
-      _ -> nil
-    end)
-  end
-
   defp is_in_check?(board, king_pos, color) do
     MoveValidator.is_square_attacked?(board, king_pos, opposite_color(color))
   end
 
-  defp is_checkmate?(board, color) do
-    # Check if there are any legal moves that would get out of check
-    !Enum.any?(board.squares, fn
-      {{from_file, from_rank}, {^color, _}} ->
-        # Check all possible moves for this piece
-        Enum.any?(for to_file <- 0..7, to_rank <- 0..7 do
-          case MoveValidator.validate_move(board, {from_file, from_rank}, {to_file, to_rank}, color) do
-            {:ok, _} -> true
-            _ -> false
-          end
-        end)
-      _ -> false
-    end)
-  end
-
-  defp is_stalemate?(board) do
-    color = board.turn
-    king_pos = find_king(board, color)
-
-    # Not in check
-    !is_in_check?(board, king_pos, color) &&
-    # But no legal moves
-    !Enum.any?(board.squares, fn
-      {{from_file, from_rank}, {^color, _}} ->
-        # Check all possible moves for this piece
-        Enum.any?(for to_file <- 0..7, to_rank <- 0..7 do
-          case MoveValidator.validate_move(board, {from_file, from_rank}, {to_file, to_rank}, color) do
-            {:ok, _} -> true
-            _ -> false
-          end
-        end)
-      _ -> false
+  defp find_king(board, color) do
+    Enum.find_value(board.squares, fn
+      {{file, rank}, {^color, :king}} -> {file, rank}
+      _ -> nil
     end)
   end
 

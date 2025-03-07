@@ -43,6 +43,32 @@ defmodule ChessApp.Games.MoveValidator do
     end
   end
 
+  @doc """
+  Checks if a square is under attack by the given color.
+  """
+  def is_square_attacked?(board, position, attacking_color) do
+    # Check if any piece of the attacking color can capture the position
+    Enum.any?(board.squares, fn
+      {{from_file, from_rank}, {^attacking_color, _}} = {from_pos, piece} ->
+        # Skip checking for king to avoid infinite recursion
+        if elem(piece, 1) == :king do
+          # For kings, just check if they're adjacent
+          file_diff = abs(from_file - elem(position, 0))
+          rank_diff = abs(from_rank - elem(position, 1))
+          file_diff <= 1 && rank_diff <= 1
+        else
+          # For other pieces, check if they can move to the position
+          case get_move_type(board, from_pos, position, piece) do
+            {:ok, _} ->
+              # Additionally verify the path is clear (doesn't apply to knights)
+              is_path_clear?(board, from_pos, position, piece, :normal)
+            _ -> false
+          end
+        end
+      _ -> false
+    end)
+  end
+
   defp get_piece(board, position) do
     case Board.piece_at(board, position) do
       nil -> {:error, :no_piece}
@@ -64,6 +90,10 @@ defmodule ChessApp.Games.MoveValidator do
     {to_file, to_rank} = to
 
     cond do
+      # Can't move to the same square
+      from == to ->
+        {:error, :same_position}
+
       # Can't capture own piece
       target_piece && elem(target_piece, 0) == color ->
         {:error, :cannot_capture_own_piece}
@@ -143,13 +173,18 @@ defmodule ChessApp.Games.MoveValidator do
   defp validate_pawn_move(board, {from_file, from_rank}, {to_file, to_rank}, color, target_piece) do
     direction = if color == :white, do: 1, else: -1
     start_rank = if color == :white, do: 1, else: 6
+    promotion_rank = if color == :white, do: 7, else: 0
     file_diff = abs(to_file - from_file)
     rank_diff = to_rank - from_rank
 
     cond do
       # Forward move (1 square)
       file_diff == 0 && rank_diff == direction && target_piece == nil ->
-        {:ok, :normal}
+        if to_rank == promotion_rank do
+          {:ok, :promotion}
+        else
+          {:ok, :normal}
+        end
 
       # Forward move (2 squares) from starting position
       file_diff == 0 && rank_diff == 2 * direction &&
@@ -159,7 +194,11 @@ defmodule ChessApp.Games.MoveValidator do
 
       # Diagonal capture
       file_diff == 1 && rank_diff == direction && target_piece != nil ->
-        {:ok, :capture}
+        if to_rank == promotion_rank do
+          {:ok, :promotion}
+        else
+          {:ok, :capture}
+        end
 
       # En passant capture
       file_diff == 1 && rank_diff == direction && target_piece == nil &&
@@ -263,29 +302,6 @@ defmodule ChessApp.Games.MoveValidator do
     Enum.find_value(board.squares, fn
       {{file, rank}, {^color, :king}} -> {file, rank}
       _ -> nil
-    end)
-  end
-
-  defp is_square_attacked?(board, position, attacking_color) do
-    # Check if any piece of the attacking color can capture the position
-    Enum.any?(board.squares, fn
-      {{from_file, from_rank}, {^attacking_color, _}} = {from_pos, piece} ->
-        # Skip checking for king to avoid infinite recursion
-        if elem(piece, 1) == :king do
-          # For kings, just check if they're adjacent
-          file_diff = abs(from_file - elem(position, 0))
-          rank_diff = abs(from_rank - elem(position, 1))
-          file_diff <= 1 && rank_diff <= 1
-        else
-          # For other pieces, check if they can move to the position
-          case get_move_type(board, from_pos, position, piece) do
-            {:ok, _} ->
-              # Additionally verify the path is clear (doesn't apply to knights)
-              is_path_clear?(board, from_pos, position, piece, :normal)
-            _ -> false
-          end
-        end
-      _ -> false
     end)
   end
 end

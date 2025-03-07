@@ -1,3 +1,4 @@
+# lib/chess_app_web/live/game/show.ex
 defmodule ChessAppWeb.GameLive.Show do
   use ChessAppWeb, :live_view
   alias ChessApp.Games.{GameServer, MoveValidator}
@@ -25,11 +26,14 @@ defmodule ChessAppWeb.GameLive.Show do
           board: game_state.board,
           players: game_state.players,
           status: game_state.status,
-          game_result: game_state.game_result,
+          current_turn: game_state.current_turn,
           selected_square: nil,
           valid_moves: [],
           last_move: nil,
-          error_message: nil
+          error_message: nil,
+          turn_notification: nil,
+          game_result: game_state.game_result,
+          promotion_selection: nil
         )}
 
       {:error, :game_full} ->
@@ -44,11 +48,14 @@ defmodule ChessAppWeb.GameLive.Show do
           board: game_state.board,
           players: game_state.players,
           status: game_state.status,
-          game_result: game_state.game_result,
+          current_turn: game_state.current_turn,
           selected_square: nil,
           valid_moves: [],
           last_move: nil,
-          error_message: nil
+          error_message: nil,
+          turn_notification: nil,
+          game_result: game_state.game_result,
+          promotion_selection: nil
         )}
     end
   end
@@ -57,9 +64,8 @@ defmodule ChessAppWeb.GameLive.Show do
   def handle_event("select_square", %{"file" => file, "rank" => rank}, socket) do
     # Only allow moves if it's the player's turn and game is in progress
     if socket.assigns.player_color == socket.assigns.current_turn &&
-      socket.assigns.status in [:in_progress, :check_white, :check_black] do
+       socket.assigns.status in [:in_progress, :check_white, :check_black] do
       position = {String.to_integer(file), String.to_integer(rank)}
-
       selected = socket.assigns.selected_square
 
       cond do
@@ -76,16 +82,44 @@ defmodule ChessAppWeb.GameLive.Show do
         # Second selection - try to move if the destination is valid
         true ->
           if position in socket.assigns.valid_moves do
-            case GameServer.make_move(socket.assigns.game_id, socket.assigns.player_session_id, selected, position) do
-              {:ok, _} ->
-                {:noreply, assign(socket, selected_square: nil, valid_moves: [])}
+            # Check for potential pawn promotion
+            piece = socket.assigns.board.squares[selected]
+            if piece && elem(piece, 1) == :pawn do
+              {_, piece_color} = piece
+              last_rank = if piece_color == :white, do: 7, else: 0
 
-              {:error, reason} ->
+              if elem(position, 1) == last_rank do
+                # Show promotion dialog instead of completing the move
                 {:noreply, assign(socket,
-                  selected_square: nil,
-                  valid_moves: [],
-                  error_message: "Invalid move: #{reason}"
+                  promotion_selection: %{from: selected, to: position}
                 )}
+              else
+                # Normal move
+                case GameServer.make_move(socket.assigns.game_id, socket.assigns.player_session_id, selected, position) do
+                  {:ok, _} ->
+                    {:noreply, assign(socket, selected_square: nil, valid_moves: [])}
+
+                  {:error, reason} ->
+                    {:noreply, assign(socket,
+                      selected_square: nil,
+                      valid_moves: [],
+                      error_message: "Invalid move: #{reason}"
+                    )}
+                end
+              end
+            else
+              # Normal move for non-pawn pieces
+              case GameServer.make_move(socket.assigns.game_id, socket.assigns.player_session_id, selected, position) do
+                {:ok, _} ->
+                  {:noreply, assign(socket, selected_square: nil, valid_moves: [])}
+
+                {:error, reason} ->
+                  {:noreply, assign(socket,
+                    selected_square: nil,
+                    valid_moves: [],
+                    error_message: "Invalid move: #{reason}"
+                  )}
+              end
             end
           else
             # Select a different piece of the same color
@@ -100,8 +134,41 @@ defmodule ChessAppWeb.GameLive.Show do
           end
       end
     else
-      # Not this player's turn
+      # Not this player's turn or game not in progress
       {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("promote", %{"piece" => piece}, socket) do
+    from = socket.assigns.promotion_selection.from
+    to = socket.assigns.promotion_selection.to
+
+    # Convert piece string to atom
+    promotion_piece = String.to_existing_atom(piece)
+
+    # Complete the move with the promotion
+    case GameServer.make_move(
+      socket.assigns.game_id,
+      socket.assigns.player_session_id,
+      from,
+      to,
+      promotion_piece
+    ) do
+      {:ok, _} ->
+        {:noreply, assign(socket,
+          promotion_selection: nil,
+          selected_square: nil,
+          valid_moves: []
+        )}
+
+      {:error, reason} ->
+        {:noreply, assign(socket,
+          promotion_selection: nil,
+          selected_square: nil,
+          valid_moves: [],
+          error_message: "Invalid promotion: #{reason}"
+        )}
     end
   end
 
@@ -199,34 +266,6 @@ defmodule ChessAppWeb.GameLive.Show do
         </div>
       </div>
 
-      <div class="board-container">
-        <div class="chess-board grid grid-cols-8 border border-gray-800 w-96 h-96">
-          <%= for rank <- 7..0 do %>
-            <%= for file <- 0..7 do %>
-              <div class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} w-12 h-12 flex items-center justify-center"}
-                  phx-click="select_square"
-                  phx-value-file={file}
-                  phx-value-rank={rank}>
-                <%= render_piece(@board.squares[{file, rank}], @status) %>
-              </div>
-            <% end %>
-          <% end %>
-        </div>
-      </div>
-
-      <div class={[
-        "mt-4 p-3 rounded-lg text-center",
-        (if @player_color == @current_turn, do: "bg-green-100", else: "bg-gray-100")
-      ]}>
-        <h3 class="font-bold">
-          <%= if @player_color == @current_turn do %>
-            Your Turn to Move
-          <% else %>
-            Waiting for <%= display_color(@current_turn) %> to Move
-          <% end %>
-        </h3>
-      </div>
-
       <%= if @turn_notification do %>
         <div class="mt-4 p-3 bg-green-100 text-green-800 rounded-lg text-center animate-pulse">
           <%= @turn_notification %>
@@ -247,6 +286,34 @@ defmodule ChessAppWeb.GameLive.Show do
           <% end %>
         </div>
       <% end %>
+
+      <div class={[
+        "mt-4 p-3 rounded-lg text-center",
+        (if @player_color == @current_turn, do: "bg-green-100", else: "bg-gray-100")
+      ]}>
+        <h3 class="font-bold">
+          <%= if @player_color == @current_turn do %>
+            Your Turn to Move
+          <% else %>
+            Waiting for <%= display_color(@current_turn) %> to Move
+          <% end %>
+        </h3>
+      </div>
+
+      <div class="board-container mt-4">
+        <div class="chess-board grid grid-cols-8 border border-gray-800 w-96 h-96">
+          <%= for rank <- 7..0 do %>
+            <%= for file <- 0..7 do %>
+              <div class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} w-12 h-12 flex items-center justify-center"}
+                   phx-click="select_square"
+                   phx-value-file={file}
+                   phx-value-rank={rank}>
+                <%= render_piece(@board.squares[{file, rank}], @status) %>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
 
       <%= if @game_result do %>
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -271,6 +338,25 @@ defmodule ChessAppWeb.GameLive.Show do
                 class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">
                 Back to Lobby
               </a>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%= if @promotion_selection do %>
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h3 class="text-xl font-bold mb-4 text-center">Choose Promotion Piece</h3>
+
+            <div class="flex space-x-4 justify-center">
+              <%= for piece <- [:queen, :rook, :bishop, :knight] do %>
+                <button
+                  class="p-2 border border-gray-300 rounded hover:bg-gray-100"
+                  phx-click="promote"
+                  phx-value-piece={piece}>
+                  <%= promotion_piece_symbol(@player_color, piece) %>
+                </button>
+              <% end %>
             </div>
           </div>
         </div>
@@ -306,8 +392,8 @@ defmodule ChessAppWeb.GameLive.Show do
     end
   end
 
-  defp render_piece(nil), do: ""
-  defp render_piece({color, piece_type}) do
+  defp render_piece(nil, _status), do: ""
+  defp render_piece({color, piece_type} = piece, status) do
     unicode = case {color, piece_type} do
       {:white, :king} -> "♔"
       {:white, :queen} -> "♕"
@@ -345,6 +431,23 @@ defmodule ChessAppWeb.GameLive.Show do
     if player_color == current_turn, do: "bg-yellow-100 rounded", else: ""
   end
 
+  defp display_status(:waiting_for_players), do: "Waiting for Players"
+  defp display_status(:in_progress), do: "Game in Progress"
+  defp display_status(:check_white), do: "White is in Check"
+  defp display_status(:check_black), do: "Black is in Check"
+  defp display_status(:checkmate_white), do: "Checkmate - Black Wins"
+  defp display_status(:checkmate_black), do: "Checkmate - White Wins"
+  defp display_status(:stalemate), do: "Draw - Stalemate"
+  defp display_status(:draw_insufficient_material), do: "Draw - Insufficient Material"
+  defp display_status(:draw_fifty_move_rule), do: "Draw - Fifty Move Rule"
+
+  defp display_player(nil), do: "Waiting for player..."
+  defp display_player({_session_id, nickname}), do: nickname
+
+  defp display_color(:white), do: "White"
+  defp display_color(:black), do: "Black"
+  defp display_color(:spectator), do: "Spectator"
+
   defp game_result_title(game_result) do
     case game_result do
       %{winner: nil} -> "Game Drawn"
@@ -373,20 +476,24 @@ defmodule ChessAppWeb.GameLive.Show do
 
   defp player_nickname({_session_id, nickname}), do: nickname
 
-  defp display_status(:waiting_for_players), do: "Waiting for Players"
-  defp display_status(:in_progress), do: "Game in Progress"
-  defp display_status(:check_white), do: "White is in Check"
-  defp display_status(:check_black), do: "Black is in Check"
-  defp display_status(:checkmate_white), do: "Checkmate - Black Wins"
-  defp display_status(:checkmate_black), do: "Checkmate - White Wins"
-  defp display_status(:stalemate), do: "Draw - Stalemate"
-  defp display_status(:draw_insufficient_material), do: "Draw - Insufficient Material"
-  defp display_status(:draw_fifty_move_rule), do: "Draw - Fifty Move Rule"
+  defp promotion_piece_symbol(color, piece_type) do
+    unicode = case {color, piece_type} do
+      {:white, :queen} -> "♕"
+      {:white, :rook} -> "♖"
+      {:white, :bishop} -> "♗"
+      {:white, :knight} -> "♘"
+      {:black, :queen} -> "♛"
+      {:black, :rook} -> "♜"
+      {:black, :bishop} -> "♝"
+      {:black, :knight} -> "♞"
+    end
 
-  defp display_player(nil), do: "Waiting for player..."
-  defp display_player({_session_id, nickname}), do: nickname
+    assigns = %{unicode: unicode}
 
-  defp display_color(:white), do: "White"
-  defp display_color(:black), do: "Black"
-  defp display_color(:spectator), do: "Spectator"
+    ~H"""
+    <div class="text-4xl">
+      <%= @unicode %>
+    </div>
+    """
+  end
 end
