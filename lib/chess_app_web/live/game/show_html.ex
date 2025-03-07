@@ -8,7 +8,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
 
       <div class="mb-6">
         <div class="flex justify-between">
-          <div class={"player-card #{if @current_turn == :white, do: 'active'}"}>
+          <div class={"player-card #{if @current_turn == :white, do: ~s(active)}"}>
             <div class="flex justify-between items-center">
               <div>
                 <span class="text-xs">WHITE</span>
@@ -20,7 +20,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
             </div>
           </div>
 
-          <div class={"player-card #{if @current_turn == :black, do: 'active'}"}>
+          <div class={"player-card #{if @current_turn == :black, do: ~s(active)}"}>
             <div class="flex justify-between items-center">
               <div>
                 <span class="text-xs">BLACK</span>
@@ -71,8 +71,8 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
 
       <div class="board-container mx-auto max-w-md">
         <div class="chess-board grid grid-cols-8 border-4 border-gray-800 w-96 h-96 mx-auto">
-          <%= for rank <- if @player_color == :black, do: 0..7, else: 7..0 do %>
-            <%= for file <- if @player_color == :black, do: 7..0, else: 0..7 do %>
+          <%= for rank <- if @player_color == :black, do: 0..7, else: 7..0//-1 do %>
+            <%= for file <- if @player_color == :black, do: 7..0//-1, else: 0..7 do %>
               <div
                 class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} w-12 h-12 flex items-center justify-center"}
                 phx-click="select_square"
@@ -82,7 +82,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
                 data-rank={rank}
               >
                 {render_piece(@board.squares[{file, rank}], @status)}
-                
+
     <!-- Coordinate labels (optional) -->
                 <div class="absolute text-xs opacity-30 bottom-0 right-1">
                   <%= if rank == (if @player_color == :black, do: 7, else: 0) do %>
@@ -167,23 +167,25 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
   def square_classes(position, selected_position, valid_moves, last_move, is_player_turn) do
     base_color = square_color(elem(position, 0), elem(position, 1))
 
-    if !is_player_turn do
+    modified_color = if !is_player_turn do
       # Add a subtle gray overlay when it's not the player's turn
-      base_color = "#{base_color} opacity-80"
+      "#{base_color} opacity-80"
+    else
+      base_color
     end
 
     cond do
       position == selected_position ->
-        "#{base_color} ring-2 ring-blue-500"
+        "#{modified_color} ring-2 ring-blue-500"
 
       position in valid_moves ->
-        "#{base_color} ring-2 ring-green-500"
+        "#{modified_color} ring-2 ring-green-500"
 
       last_move && (position == last_move.from || position == last_move.to) ->
-        "#{base_color} ring-1 ring-yellow-500"
+        "#{modified_color} ring-1 ring-yellow-500"
 
       true ->
-        base_color
+        modified_color
     end
   end
 
