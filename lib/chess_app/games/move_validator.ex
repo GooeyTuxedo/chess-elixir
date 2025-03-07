@@ -1,14 +1,28 @@
 defmodule ChessApp.Games.MoveValidator do
   @moduledoc """
   Validates chess moves according to standard chess rules.
+  This module has been refactored to separate concerns and improve readability.
   """
 
   alias ChessApp.Games.Board
+  alias ChessApp.Games.Validators.{
+    PawnMoveValidator,
+    KnightMoveValidator,
+    BishopMoveValidator,
+    RookMoveValidator,
+    QueenMoveValidator,
+    KingMoveValidator
+  }
+
+  @type position :: {0..7, 0..7}
+  @type move_type :: :normal | :capture | :double_push | :en_passant | :castle_kingside | :castle_queenside | :promotion
 
   @doc """
   Validates if a move is legal for the current board state.
   Returns {:ok, move_type} or {:error, reason}.
   """
+  @spec validate_move(Board.t(), position(), position(), Board.color()) ::
+    {:ok, move_type()} | {:error, atom()}
   def validate_move(board, from, to, player_color) do
     with {:ok, piece} <- get_piece(board, from),
          true <- is_players_piece?(piece, player_color),
@@ -27,18 +41,21 @@ defmodule ChessApp.Games.MoveValidator do
   @doc """
   Returns all valid moves for a piece at the given position.
   """
+  @spec valid_moves(Board.t(), position()) :: [position()]
   def valid_moves(board, position) do
     case get_piece(board, position) do
       {:ok, piece} ->
+        {color, _} = piece
+
         # Check all possible destination squares
-        for file <- 0..7, rank <- 0..7 do
-          to = {file, rank}
-          case validate_move(board, position, to, elem(piece, 0)) do
-            {:ok, _} -> to
-            _ -> nil
-          end
+        for file <- 0..7, rank <- 0..7, reduce: [] do
+          acc ->
+            to = {file, rank}
+            case validate_move(board, position, to, color) do
+              {:ok, _} -> [to | acc]
+              _ -> acc
+            end
         end
-        |> Enum.reject(&is_nil/1)
 
       _ -> []
     end
@@ -47,11 +64,12 @@ defmodule ChessApp.Games.MoveValidator do
   @doc """
   Checks if a square is under attack by the given color.
   """
+  @spec is_square_attacked?(Board.t(), position(), Board.color()) :: boolean()
   def is_square_attacked?(board, position, attacking_color) do
     # Check if any piece of the attacking color can capture the position
     Enum.any?(board.squares, fn
       {{from_file, from_rank}, {^attacking_color, _}} = {from_pos, piece} ->
-        # Skip checking for king to avoid infinite recursion
+        # Skip checking for king to avoid infinite recursion with would_result_in_check?
         if elem(piece, 1) == :king do
           # For kings, just check if they're adjacent
           file_diff = abs(from_file - elem(position, 0))
@@ -70,6 +88,8 @@ defmodule ChessApp.Games.MoveValidator do
     end)
   end
 
+  # Private functions
+
   defp get_piece(board, position) do
     case Board.piece_at(board, position) do
       nil -> {:error, :no_piece}
@@ -85,130 +105,32 @@ defmodule ChessApp.Games.MoveValidator do
     board.turn == color
   end
 
-  defp get_move_type(board, from, to, {color, piece_type}) do
-    target_piece = Board.piece_at(board, to)
-    {from_file, from_rank} = from
-    {to_file, to_rank} = to
-
-    cond do
-      # Can't move to the same square
-      from == to ->
-        {:error, :same_position}
-
-      # Can't capture own piece
-      target_piece && elem(target_piece, 0) == color ->
-        {:error, :cannot_capture_own_piece}
-
-      # Pawn moves
-      piece_type == :pawn ->
-        validate_pawn_move(board, from, to, color, target_piece)
-
-      # Knight moves
-      piece_type == :knight ->
-        file_diff = abs(to_file - from_file)
-        rank_diff = abs(to_rank - from_rank)
-        if (file_diff == 1 && rank_diff == 2) || (file_diff == 2 && rank_diff == 1) do
-          if target_piece, do: {:ok, :capture}, else: {:ok, :normal}
-        else
-          {:error, :invalid_knight_move}
-        end
-
-      # Bishop moves
-      piece_type == :bishop ->
-        if abs(to_file - from_file) == abs(to_rank - from_rank) do
-          if target_piece, do: {:ok, :capture}, else: {:ok, :normal}
-        else
-          {:error, :invalid_bishop_move}
-        end
-
-      # Rook moves
-      piece_type == :rook ->
-        if (to_file == from_file) || (to_rank == from_rank) do
-          if target_piece, do: {:ok, :capture}, else: {:ok, :normal}
-        else
-          {:error, :invalid_rook_move}
-        end
-
-      # Queen moves (bishop + rook)
-      piece_type == :queen ->
-        diag_move = abs(to_file - from_file) == abs(to_rank - from_rank)
-        straight_move = (to_file == from_file) || (to_rank == from_rank)
-
-        if diag_move || straight_move do
-          if target_piece, do: {:ok, :capture}, else: {:ok, :normal}
-        else
-          {:error, :invalid_queen_move}
-        end
-
-      # King moves
-      piece_type == :king ->
-        file_diff = abs(to_file - from_file)
-        rank_diff = abs(to_rank - from_rank)
-
-        cond do
-          # Normal move (1 square in any direction)
-          file_diff <= 1 && rank_diff <= 1 ->
-            if target_piece, do: {:ok, :capture}, else: {:ok, :normal}
-
-          # Kingside castling
-          from == {4, (if color == :white, do: 0, else: 7)} &&
-          to == {6, (if color == :white, do: 0, else: 7)} &&
-          can_castle?(board, color, :kingside) ->
-            {:ok, :castle_kingside}
-
-          # Queenside castling
-          from == {4, (if color == :white, do: 0, else: 7)} &&
-          to == {2, (if color == :white, do: 0, else: 7)} &&
-          can_castle?(board, color, :queenside) ->
-            {:ok, :castle_queenside}
-
-          true ->
-            {:error, :invalid_king_move}
-        end
-
-      true ->
-        {:error, :unknown_piece_type}
-    end
+  defp get_move_type(board, from, to, {color, :pawn}) do
+    PawnMoveValidator.validate(board, from, to, color)
   end
 
-  defp validate_pawn_move(board, {from_file, from_rank}, {to_file, to_rank}, color, target_piece) do
-    direction = if color == :white, do: 1, else: -1
-    start_rank = if color == :white, do: 1, else: 6
-    promotion_rank = if color == :white, do: 7, else: 0
-    file_diff = abs(to_file - from_file)
-    rank_diff = to_rank - from_rank
+  defp get_move_type(board, from, to, {_color, :knight}) do
+    KnightMoveValidator.validate(from, to, board.squares[to])
+  end
 
-    cond do
-      # Forward move (1 square)
-      file_diff == 0 && rank_diff == direction && target_piece == nil ->
-        if to_rank == promotion_rank do
-          {:ok, :promotion}
-        else
-          {:ok, :normal}
-        end
+  defp get_move_type(board, from, to, {_color, :bishop}) do
+    BishopMoveValidator.validate(from, to, board.squares[to])
+  end
 
-      # Forward move (2 squares) from starting position
-      file_diff == 0 && rank_diff == 2 * direction &&
-      from_rank == start_rank && target_piece == nil &&
-      Board.piece_at(board, {from_file, from_rank + direction}) == nil ->
-        {:ok, :double_push}
+  defp get_move_type(board, from, to, {_color, :rook}) do
+    RookMoveValidator.validate(from, to, board.squares[to])
+  end
 
-      # Diagonal capture
-      file_diff == 1 && rank_diff == direction && target_piece != nil ->
-        if to_rank == promotion_rank do
-          {:ok, :promotion}
-        else
-          {:ok, :capture}
-        end
+  defp get_move_type(board, from, to, {_color, :queen}) do
+    QueenMoveValidator.validate(from, to, board.squares[to])
+  end
 
-      # En passant capture
-      file_diff == 1 && rank_diff == direction && target_piece == nil &&
-      board.en_passant_target == {to_file, to_rank} ->
-        {:ok, :en_passant}
+  defp get_move_type(board, from, to, {color, :king}) do
+    KingMoveValidator.validate(board, from, to, color)
+  end
 
-      true ->
-        {:error, :invalid_pawn_move}
-    end
+  defp get_move_type(_, _, _, _) do
+    {:error, :unknown_piece_type}
   end
 
   defp is_path_clear?(board, from, to, {_, piece_type}, _move_type) do
@@ -228,13 +150,19 @@ defmodule ChessApp.Games.MoveValidator do
       check_rank = from_rank + rank_step
 
       # Check each position until we reach the destination (exclusive)
-      Enum.all?(
-        Stream.unfold({check_file, check_rank}, fn
-          {f, r} when f == to_file and r == to_rank -> nil
-          {f, r} -> {{f, r}, {f + file_step, r + rank_step}}
-        end),
-        fn pos -> Board.piece_at(board, pos) == nil end
-      )
+      check_path_clear(board, check_file, check_rank, to_file, to_rank, file_step, rank_step)
+    end
+  end
+
+  defp check_path_clear(board, file, rank, to_file, to_rank, file_step, rank_step) do
+    if file == to_file and rank == to_rank do
+      true
+    else
+      if Board.piece_at(board, {file, rank}) == nil do
+        check_path_clear(board, file + file_step, rank + rank_step, to_file, to_rank, file_step, rank_step)
+      else
+        false
+      end
     end
   end
 
@@ -245,37 +173,6 @@ defmodule ChessApp.Games.MoveValidator do
       true -> 0
     end
   end
-
-  defp can_castle?(board, color, side) do
-    # Check castling rights
-    castling_rights = board.castling_rights[color][side]
-
-    # King's rank
-    rank = if color == :white, do: 0, else: 7
-
-    # Check if the path is clear
-    case side do
-      :kingside ->
-        castling_rights &&
-        Board.piece_at(board, {5, rank}) == nil &&
-        Board.piece_at(board, {6, rank}) == nil &&
-        !is_square_attacked?(board, {4, rank}, opposite_color(color)) &&
-        !is_square_attacked?(board, {5, rank}, opposite_color(color)) &&
-        !is_square_attacked?(board, {6, rank}, opposite_color(color))
-
-      :queenside ->
-        castling_rights &&
-        Board.piece_at(board, {1, rank}) == nil &&
-        Board.piece_at(board, {2, rank}) == nil &&
-        Board.piece_at(board, {3, rank}) == nil &&
-        !is_square_attacked?(board, {4, rank}, opposite_color(color)) &&
-        !is_square_attacked?(board, {3, rank}, opposite_color(color)) &&
-        !is_square_attacked?(board, {2, rank}, opposite_color(color))
-    end
-  end
-
-  defp opposite_color(:white), do: :black
-  defp opposite_color(:black), do: :white
 
   defp would_result_in_check?(board, from, to) do
     # Simulate the move
@@ -305,4 +202,7 @@ defmodule ChessApp.Games.MoveValidator do
       _ -> nil
     end)
   end
+
+  defp opposite_color(:white), do: :black
+  defp opposite_color(:black), do: :white
 end

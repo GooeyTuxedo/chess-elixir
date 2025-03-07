@@ -184,11 +184,11 @@ defmodule ChessAppWeb.GameLive.Show do
     {:ok, new_game_id} = GameServer.create_game()
 
     # Redirect to the new game
-    {:noreply, push_redirect(socket, to: ~p"/games/#{new_game_id}")}
+    {:noreply, push_navigate(socket, to: ~p"/games/#{new_game_id}")}
   end
 
   @impl true
-  def handle_info({:player_joined, color, nickname}, socket) do
+  def handle_info({:player_joined, _color, _nickname}, socket) do
     # Refresh game state
     game_state = GameServer.get_state(socket.assigns.game_id)
 
