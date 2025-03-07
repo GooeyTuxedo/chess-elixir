@@ -5,9 +5,14 @@ defmodule ChessAppWeb.Router do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
-    plug :put_root_layout, html: {ChessAppWeb.Layouts, :root}
+    plug :put_root_layout, {ChessAppWeb.LayoutView, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :ensure_player_session
+  end
+
+  defp ensure_player_session(conn, _opts) do
+    ChessApp.Session.PlayerSession.ensure_player_session(conn)
   end
 
   pipeline :api do
@@ -17,7 +22,9 @@ defmodule ChessAppWeb.Router do
   scope "/", ChessAppWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", GameLive.Index, :index
+    live "/games/new", GameLive.Index, :new
+    live "/games/:id", GameLive.Show, :show
   end
 
   # Other scopes may use custom stacks.

@@ -1,27 +1,25 @@
 defmodule ChessApp.Application do
-  # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
-  @moduledoc false
-
   use Application
 
   @impl true
   def start(_type, _args) do
     children = [
-      ChessAppWeb.Telemetry,
+      # Start the Ecto repository
       ChessApp.Repo,
-      {DNSCluster, query: Application.get_env(:chess_app, :dns_cluster_query) || :ignore},
+      # Start the Telemetry supervisor
+      ChessAppWeb.Telemetry,
+      # Start the PubSub system
       {Phoenix.PubSub, name: ChessApp.PubSub},
-      # Start the Finch HTTP client for sending emails
-      {Finch, name: ChessApp.Finch},
-      # Start a worker by calling: ChessApp.Worker.start_link(arg)
-      # {ChessApp.Worker, arg},
-      # Start to serve requests, typically the last entry
+      # Start the game registry
+      {Registry, keys: :unique, name: ChessApp.GameRegistry},
+      # Start the dynamic supervisor for game servers
+      {DynamicSupervisor, name: ChessApp.GameSupervisor, strategy: :one_for_one},
+      # Start Presence for tracking connected players
+      ChessAppWeb.Presence,
+      # Start the Endpoint (http/https)
       ChessAppWeb.Endpoint
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: ChessApp.Supervisor]
     Supervisor.start_link(children, opts)
   end
