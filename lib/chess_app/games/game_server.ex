@@ -104,6 +104,50 @@ defmodule ChessApp.Games.GameServer do
     {:reply, game_info, state}
   end
 
+# Inside handle_call for make_move
+@impl true
+def handle_call({:make_move, player_session_id, from, to}, _from, state) do
+  # ... existing code for move validation and execution
+
+  # Check for game end conditions
+  game_status = check_game_status(new_board)
+
+  # Determine game result if the game has ended
+  game_result = case game_status do
+    :checkmate_white -> %{winner: :black, reason: :checkmate}
+    :checkmate_black -> %{winner: :white, reason: :checkmate}
+    :stalemate -> %{winner: nil, reason: :stalemate}
+    :draw_insufficient_material -> %{winner: nil, reason: :insufficient_material}
+    :draw_fifty_move_rule -> %{winner: nil, reason: :fifty_move_rule}
+    _ -> nil
+  end
+
+  # Update state
+  new_state = %{state |
+    board: new_board,
+    status: game_status,
+    move_history: [move | state.move_history],
+    game_result: game_result
+  }
+
+  # Broadcast the move and game result if the game ended
+  if game_result do
+    Phoenix.PubSub.broadcast(
+      ChessApp.PubSub,
+      "game:#{state.game_id}",
+      {:game_over, game_result, new_state}
+    )
+  else
+    Phoenix.PubSub.broadcast(
+      ChessApp.PubSub,
+      "game:#{state.game_id}",
+      {:move_made, move, new_state}
+    )
+  end
+
+  {:reply, {:ok, move_type}, new_state}
+end
+
   @impl true
   def handle_call({:make_move, player_session_id, from, to}, _from, state) do
     player_color = get_player_color(state, player_session_id)
@@ -129,19 +173,38 @@ defmodule ChessApp.Games.GameServer do
           # Check for game end conditions
           game_status = check_game_status(new_board)
 
+          # Determine game result if the game has ended
+          game_result = case game_status do
+            :checkmate_white -> %{winner: :black, reason: :checkmate}
+            :checkmate_black -> %{winner: :white, reason: :checkmate}
+            :stalemate -> %{winner: nil, reason: :stalemate}
+            :draw_insufficient_material -> %{winner: nil, reason: :insufficient_material}
+            :draw_fifty_move_rule -> %{winner: nil, reason: :fifty_move_rule}
+            _ -> nil
+          end
+
           # Update state
           new_state = %{state |
             board: new_board,
             status: game_status,
-            move_history: [move | state.move_history]
+            move_history: [move | state.move_history],
+            game_result: game_result
           }
 
-          # Broadcast the move
-          Phoenix.PubSub.broadcast(
-            ChessApp.PubSub,
-            "game:#{state.game_id}",
-            {:move_made, move, new_state}
-          )
+          # Broadcast the move and game result if the game ended
+          if game_result do
+            Phoenix.PubSub.broadcast(
+              ChessApp.PubSub,
+              "game:#{state.game_id}",
+              {:game_over, game_result, new_state}
+            )
+          else
+            Phoenix.PubSub.broadcast(
+              ChessApp.PubSub,
+              "game:#{state.game_id}",
+              {:move_made, move, new_state}
+            )
+          end
 
           {:reply, {:ok, move_type}, new_state}
 
@@ -185,32 +248,59 @@ defmodule ChessApp.Games.GameServer do
     white_in_check = is_in_check?(board, white_king_pos, :white)
     black_in_check = is_in_check?(board, black_king_pos, :black)
 
+    current_player = board.turn
+
     cond do
-      white_in_check && is_checkmate?(board, :white) ->
-        :checkmate_white
+      # Checkmate - current player has no legal moves and is in check
+      (current_player == :white && white_in_check && has_no_legal_moves?(board, :white)) ||
+      (current_player == :black && black_in_check && has_no_legal_moves?(board, :black)) ->
+        if current_player == :white, do: :checkmate_white, else: :checkmate_black
 
-      black_in_check && is_checkmate?(board, :black) ->
-        :checkmate_black
-
-      is_stalemate?(board) ->
+      # Stalemate - current player has no legal moves and is not in check
+      has_no_legal_moves?(board, current_player) &&
+      ((current_player == :white && !white_in_check) ||
+       (current_player == :black && !black_in_check)) ->
         :stalemate
 
+      # Check - king is under attack
+      white_in_check -> :check_white
+      black_in_check -> :check_black
+
+      # Insufficient material
       is_draw_by_insufficient_material?(board) ->
         :draw_insufficient_material
 
+      # Fifty-move rule
       board.halfmove_clock >= 100 ->
         :draw_fifty_move_rule
 
+      # Game continues
       true ->
-        if white_in_check do
-          :check_white
-        else if black_in_check do
-          :check_black
-        else
-          :in_progress
-        end
-      end
+        :in_progress
     end
+  end
+
+  defp has_no_legal_moves?(board, color) do
+    # Check if there are any legal moves for the given color
+    !Enum.any?(board.squares, fn
+      {{from_file, from_rank}, {^color, _}} ->
+        # Try all possible destinations
+        Enum.any?(
+          for to_file <- 0..7, to_rank <- 0..7 do
+            to_pos = {to_file, to_rank}
+            # Skip if the position is the same
+            if to_pos != {from_file, from_rank} do
+              case MoveValidator.validate_move(board, {from_file, from_rank}, to_pos, color) do
+                {:ok, _} -> true
+                _ -> false
+              end
+            else
+              false
+            end
+          end
+        )
+      _ -> false
+    end)
   end
 
   defp find_king(board, color) do
