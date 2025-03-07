@@ -9,10 +9,10 @@ defmodule ChessApp.Session.PlayerSession do
   def ensure_player_session(conn) do
     session = Plug.Conn.get_session(conn)
 
-    player_session = Map.get(session, "player_session_id")
+    player_session_id = Map.get(session, "player_session_id")
     player_nickname = Map.get(session, "player_nickname")
 
-    conn = if player_session do
+    conn = if player_session_id do
       conn
     else
       # Generate a random session ID if none exists

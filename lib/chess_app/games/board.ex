@@ -4,6 +4,11 @@ defmodule ChessApp.Games.Board do
   Represents a chess board and handles board state.
   """
 
+  @type position :: {0..7, 0..7}
+  @type piece :: {color(), piece_type()}
+  @type color :: :white | :black
+  @type piece_type :: :pawn | :knight | :bishop | :rook | :queen | :king
+
   defstruct squares: %{},
             turn: :white,
             castling_rights: %{white: %{kingside: true, queenside: true},
@@ -21,7 +26,22 @@ defmodule ChessApp.Games.Board do
     }
   end
 
-  # ... other functions
+  @doc """
+  Returns the piece at the given position, or nil if empty.
+  """
+  def piece_at(board, position) do
+    Map.get(board.squares, position)
+  end
+
+  @doc """
+  Returns the color of the piece at the given position, or nil if empty.
+  """
+  def color_at(board, position) do
+    case piece_at(board, position) do
+      {color, _} -> color
+      nil -> nil
+    end
+  end
 
   defp initial_position do
     # Create a map with starting positions for all pieces
