@@ -10,8 +10,20 @@
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
+    <style>
+      /* Inline critical styles to ensure they load immediately */
+      body {
+        background-color: #1a1a2e;
+        color: white;
+        font-family: 'Press Start 2P', cursive;
+      }
+      .font-pixel {
+        font-family: 'Press Start 2P', cursive;
+        letter-spacing: 0.05em;
+      }
+    </style>
   </head>
-  <body class="h-full bg-gray-900 text-white">
+  <body class="h-full bg-gray-900 text-white font-pixel">
     <%= @inner_content %>
   </body>
 </html>

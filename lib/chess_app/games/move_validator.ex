@@ -20,6 +20,7 @@ defmodule ChessApp.Games.MoveValidator do
     else
       {:error, reason} -> {:error, reason}
       false -> {:error, :illegal_move}
+      true -> {:error, :would_result_in_check}
     end
   end
 

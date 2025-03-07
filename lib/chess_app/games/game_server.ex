@@ -185,17 +185,19 @@ defmodule ChessApp.Games.GameServer do
     }
 
     # Broadcast the move and game result if the game ended
+    broadcast_state = Map.put(new_state, :current_turn, new_board.turn)
+
     if game_result do
       Phoenix.PubSub.broadcast(
         ChessApp.PubSub,
         "game:#{state.game_id}",
-        {:game_over, game_result, new_state}
+        {:game_over, game_result, broadcast_state}
       )
     else
       Phoenix.PubSub.broadcast(
         ChessApp.PubSub,
         "game:#{state.game_id}",
-        {:move_made, move, new_state}
+        {:move_made, move, broadcast_state}
       )
     end
 

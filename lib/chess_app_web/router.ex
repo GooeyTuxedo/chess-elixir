@@ -11,6 +11,10 @@ defmodule ChessAppWeb.Router do
     plug :ensure_player_session
   end
 
+  pipeline :game do
+    plug :put_root_layout, {ChessAppWeb.Layouts, :game}
+  end
+
   defp ensure_player_session(conn, _opts) do
     ChessApp.Session.PlayerSession.ensure_player_session(conn)
   end
@@ -20,7 +24,7 @@ defmodule ChessAppWeb.Router do
   end
 
   scope "/", ChessAppWeb do
-    pipe_through :browser
+    pipe_through [:browser, :game]
 
     live "/", GameLive.Index, :index
     live "/games/new", GameLive.Index, :new

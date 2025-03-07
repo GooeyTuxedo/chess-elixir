@@ -53,7 +53,7 @@ defmodule ChessAppWeb do
   def live_view do
     quote do
       use Phoenix.LiveView,
-        layout: {ChessAppWeb.Layouts, :app}
+        layout: false
 
       unquote(html_helpers())
     end
