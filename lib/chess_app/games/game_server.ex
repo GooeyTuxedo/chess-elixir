@@ -92,7 +92,16 @@ defmodule ChessApp.Games.GameServer do
 
   @impl true
   def handle_call(:get_state, _from, state) do
-    {:reply, state, state}
+    game_info = %{
+      game_id: state.game_id,
+      board: state.board,
+      players: state.players,
+      status: state.status,
+      current_turn: state.board.turn,
+      move_history: state.move_history
+    }
+
+    {:reply, game_info, state}
   end
 
   @impl true
