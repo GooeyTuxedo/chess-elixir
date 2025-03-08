@@ -186,8 +186,7 @@ defmodule ChessApp.Games.MoveValidatorTest do
       valid_moves = MoveValidator.valid_moves(board, {1, 0})
       assert Enum.member?(valid_moves, {0, 2})
       assert Enum.member?(valid_moves, {2, 2})
-      assert Enum.member?(valid_moves, {3, 1})
-      assert length(valid_moves) == 3
+      assert length(valid_moves) == 2
 
       # Valid moves for white pawn at starting position
       valid_moves = MoveValidator.valid_moves(board, {4, 1})

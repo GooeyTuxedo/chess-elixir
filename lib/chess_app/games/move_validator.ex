@@ -5,7 +5,6 @@ defmodule ChessApp.Games.MoveValidator do
   """
 
   alias ChessApp.Games.Board
-
   alias ChessApp.Games.Validators.{
     PawnMoveValidator,
     KnightMoveValidator,
@@ -32,25 +31,28 @@ defmodule ChessApp.Games.MoveValidator do
   @spec validate_move(Board.t(), position(), position(), Board.color()) ::
           {:ok, move_type()} | {:error, atom()}
   def validate_move(board, from, to, player_color) do
-    # First, check if the move would result in check, before even validating the piece rules
     with {:ok, piece} <- get_piece(board, from),
-         true <- is_players_piece?(piece, player_color),
-         true <- is_players_turn?(board, piece) do
+          true <- is_players_piece?(piece, player_color),
+          true <- is_players_turn?(board, piece) do
 
-      # Check if the move would result in check BEFORE validating piece-specific rules
-      # This is a special case for the test that expects check detection to override invalid pawn moves
+      # First, check if this move would result in check to own king
       if would_result_in_check?(board, from, to) do
         {:error, :would_result_in_check}
       else
-        # Now validate the move according to piece rules
-        case get_move_type(board, from, to, piece) do
-          {:ok, move_type} ->
-            if is_path_clear?(board, from, to, piece, move_type) do
-              {:ok, move_type}
-            else
-              {:error, :path_not_clear}
-            end
-          error -> error
+        # Then check if trying to capture own piece
+        if is_own_piece_at_target?(board, to, player_color) do
+          {:error, :cannot_capture_own_piece}
+        else
+          # Finally validate the move according to piece rules
+          case get_move_type(board, from, to, piece) do
+            {:ok, move_type} ->
+              if is_path_clear?(board, from, to, piece, move_type) do
+                {:ok, move_type}
+              else
+                {:error, :path_not_clear}
+              end
+            error -> error
+          end
         end
       end
     else
@@ -138,6 +140,14 @@ defmodule ChessApp.Games.MoveValidator do
     board.turn == color
   end
 
+  # Check if the target square contains a piece of the player's color
+  defp is_own_piece_at_target?(board, to, player_color) do
+    case Board.piece_at(board, to) do
+      {piece_color, _} -> piece_color == player_color
+      nil -> false
+    end
+  end
+
   defp get_move_type(board, from, to, {color, :pawn}) do
     PawnMoveValidator.validate(board, from, to, color)
   end
@@ -164,17 +174,6 @@ defmodule ChessApp.Games.MoveValidator do
 
   defp get_move_type(_, _, _, _) do
     {:error, :unknown_piece_type}
-  end
-
-  defp is_pawn_attacking?({_from_file, _from_rank}, nil, _attacking_color), do: false
-
-  defp is_pawn_attacking?({from_file, from_rank}, {to_file, to_rank}, attacking_color) do
-    file_diff = abs(to_file - from_file)
-    direction = if attacking_color == :white, do: 1, else: -1
-    rank_diff = to_rank - from_rank
-
-    # Pawns attack diagonally in the forward direction
-    file_diff == 1 && rank_diff == direction
   end
 
   defp is_path_clear?(_board, _from, nil, _piece, _move_type), do: false
@@ -206,15 +205,7 @@ defmodule ChessApp.Games.MoveValidator do
       true
     else
       if Board.piece_at(board, {file, rank}) == nil do
-        check_path_clear(
-          board,
-          file + file_step,
-          rank + rank_step,
-          to_file,
-          to_rank,
-          file_step,
-          rank_step
-        )
+        check_path_clear(board, file + file_step, rank + rank_step, to_file, to_rank, file_step, rank_step)
       else
         false
       end
@@ -227,6 +218,17 @@ defmodule ChessApp.Games.MoveValidator do
       from > to -> -1
       true -> 0
     end
+  end
+
+  defp is_pawn_attacking?({_from_file, _from_rank}, nil, _attacking_color), do: false
+
+  defp is_pawn_attacking?({from_file, from_rank}, {to_file, to_rank}, attacking_color) do
+    file_diff = abs(to_file - from_file)
+    direction = if attacking_color == :white, do: 1, else: -1
+    rank_diff = to_rank - from_rank
+
+    # Pawns attack diagonally in the forward direction
+    file_diff == 1 && rank_diff == direction
   end
 
   defp would_result_in_check?(board, from, to) do
@@ -243,11 +245,9 @@ defmodule ChessApp.Games.MoveValidator do
 
   defp simulate_move(board, from, to) do
     piece = Board.piece_at(board, from)
-
-    new_squares =
-      board.squares
-      |> Map.delete(from)
-      |> Map.put(to, piece)
+    new_squares = board.squares
+                  |> Map.delete(from)
+                  |> Map.put(to, piece)
 
     new_board = %{board | squares: new_squares}
     {piece, new_board}
