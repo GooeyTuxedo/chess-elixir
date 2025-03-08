@@ -1,75 +1,137 @@
-# Elixir Chess Game
+# Retro Chess
 
-This Phoenix LiveView chess application provides a fully functional two-player chess game with real-time updates and all standard chess rules. Here's a summary of what I've built and the key decisions made:
+A multiplayer chess game with real-time updates built with Elixir and Phoenix LiveView.
 
-## Core Components
+![Retro Chess Screenshot](screenshot.png)
 
-1. **Board Representation** - A comprehensive model representing a chess board with piece positions, castling rights, en passant targets, and move counters.
+## Overview
 
-2. **Move Validation** - A robust validator that enforces all chess rules including special moves like castling, en passant, and pawn promotion.
+Retro Chess is a complete implementation of chess with a retro-themed UI. It allows two players to play chess in real-time, with all standard chess rules enforced. The application uses Phoenix LiveView for real-time updates without needing WebSockets code or JavaScript.
 
-3. **Game Server** - A GenServer-based approach for managing game state, handling concurrent games, and broadcasting moves to players.
+## Features
 
-4. **Real-time UI** - LiveView implementation enabling real-time board updates, move highlighting, and player interactions.
+- ♟️ Full implementation of chess rules:
+  - Standard piece movements for all pieces
+  - Castling (kingside and queenside)
+  - En passant captures
+  - Pawn promotion
+  - Check and checkmate detection
+  - Stalemate detection
+  - Draws due to insufficient material or fifty-move rule
 
-## Key Design Decisions
+- 🎮 Retro-style interface:
+  - Pixel art styling with "Press Start 2P" font
+  - Responsive board that works on both desktop and mobile
+  - Visual highlighting of valid moves and checks
 
-### Deferring User Authentication
+- 👥 Multiplayer capabilities:
+  - Quick game creation and joining
+  - Share a URL to invite opponents
+  - Spectator mode for watching games
+  - Auto-assignment of colors
 
-I decided to defer implementing user authentication in favor of session-based player identification because:
+- ⚡ Technical features:
+  - Real-time updates using Phoenix LiveView
+  - Fault-tolerant architecture using Elixir processes
+  - Comprehensive test suite
+  - Docker support for easy deployment
 
-- It simplified the initial architecture, allowing us to focus on the core chess gameplay
-- It reduced development time while still providing a fully functional experience
-- Players can be uniquely identified within their browser session
-- The system remains flexible enough to add authentication later when needed
+## Technology Stack
 
-### State Management
+- **Elixir**: Functional programming language
+- **Phoenix Framework**: Web framework
+- **Phoenix LiveView**: Real-time UI updates without JavaScript
+- **Tailwind CSS**: Styling
+- **PostgreSQL**: Database for game persistence
+- **Docker**: Containerization
 
-The project uses Elixir's actor model through GenServers:
-- Each game is managed by a separate GameServer process
-- A Registry tracks all active games
-- A DynamicSupervisor ensures fault tolerance
+## Architecture
 
-### Real-time Updates
+The application follows a clean, modular architecture:
 
-The real-time gameplay is implemented using:
-- Phoenix PubSub for broadcasting moves and game events
-- LiveView for seamless UI updates without page refreshes
-- Pattern matching to handle various game events (moves, player joins, game endings)
+- **Board**: Core representation of a chess board and pieces
+- **MoveValidator**: Validates moves according to chess rules
+- **GameServer**: Manages game state and player interactions
+- **LiveView**: Handles the UI and real-time updates
 
-### Session-Based Identity
+The game logic is completely isolated from the UI, making it easy to test and maintain.
 
-Instead of user accounts, I implemented a session-based approach:
-- Players receive a random session ID and nickname
-- Games recognize returning players based on their session
-- The approach is lightweight but sufficient for casual play
+## Getting Started
 
-## Game Features
+### Prerequisites
 
-The implementation includes all standard chess rules:
-- Basic movement for all piece types
-- Castling (kingside and queenside)
-- En passant captures
-- Pawn promotion
-- Check and checkmate detection
-- Draw conditions (stalemate, insufficient material, fifty-move rule)
+- Elixir 1.17+
+- Phoenix 1.7+
+- PostgreSQL
+- Docker (optional)
 
-## Technical Highlights
+### Running Locally
 
-- **Concurrency** - Multiple games can run simultaneously thanks to Elixir's lightweight processes
-- **Fault Tolerance** - Supervision ensures that individual game failures don't affect the entire system
-- **Pattern Matching** - Elixir's pattern matching creates clean, readable code for complex chess rules
-- **Real-time UI** - LiveView provides a responsive experience without complex client-side JavaScript
-- **Containerization** - Docker setup for consistent development environments
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/gooeytuxedo/chess-elixir.git
+   cd chess_app
+   ```
+
+2. Install dependencies:
+   ```bash
+   mix deps.get
+   ```
+
+3. Setup the database:
+   ```bash
+   mix ecto.setup
+   ```
+
+4. Start the Phoenix server:
+   ```bash
+   mix phx.server
+   ```
+
+Visit [`localhost:4000`](http://localhost:4000) from your browser.
+
+### Using Docker
+
+1. Build and start the containers:
+   ```bash
+   docker-compose up -d
+   ```
+
+2. Visit [`localhost:4000`](http://localhost:4000) from your browser.
+
+## Running Tests
+
+```bash
+mix test
+```
+
+## How to Play
+
+1. Visit the homepage and click "Create New Game"
+2. Share the game URL with your opponent
+3. The first player is automatically assigned white, the second player black
+4. Make moves by:
+   - Clicking on a piece to select it
+   - Click on a highlighted square to move
+5. Special moves:
+   - Castling: Move your king two squares toward a rook
+   - En passant: Capture a pawn that just moved two squares
+   - Promotion: Select a piece when your pawn reaches the opposite rank
 
 ## Future Enhancements
 
-Possible next steps include:
-- Adding move history with standard chess notation
-- Implementing a simple AI opponent
-- Adding game persistence to the database
-- Introducing player ratings and matchmaking
-- Adding time controls (chess clock)
-- Implementing user authentication when needed
+- Support for chess notation in move history
+- Rating system for players
+- AI opponents for single-player
+- Game analysis tools
+- Time controls (chess clock)
 
-This project demonstrates effective use of Elixir and Phoenix LiveView for building real-time, stateful applications with complex business logic and interactive UIs.
+## License
+
+MIT License
+
+## Acknowledgments
+
+- [Phoenix Framework](https://phoenixframework.org/)
+- [Elixir](https://elixir-lang.org/)
+- [Press Start 2P Font](https://fonts.google.com/specimen/Press+Start+2P)
