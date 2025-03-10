@@ -13,13 +13,13 @@
 
 /* Game container */
 .game-container {
-  max-width: 800px;
+  max-width: 1000px; /* Increased from 800px */
   margin: 0 auto;
   background-color: #1a1a2e;
   border: 4px solid #6a4c93;
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-  padding: 2rem;
+  padding: 1.5rem 2rem;
 }
 
 .game-title {
@@ -35,8 +35,8 @@
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
-  width: 480px;
-  height: 480px;
+  width: 560px; /* Increased from 480px */
+  height: 560px; /* Increased from 480px */
   border: 5px solid #444;
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
   margin: 0 auto;
@@ -46,8 +46,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
+  width: 70px; /* Increased from 60px */
+  height: 70px; /* Increased from 60px */
   font-size: 40px;
   cursor: pointer;
   position: relative;
@@ -180,45 +180,53 @@
   @apply max-w-3xl mx-auto mb-6;
 }
 
-/* Game layout with captured pieces */
+/* New layout structure */
 .game-flex-container {
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 16px;
-  margin: 24px 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
 }
 
-/* Captured pieces display */
+/* Captured pieces section */
+.captured-pieces-section {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
 .captured-pieces-container {
-  width: 80px;
-  min-height: 300px;
+  width: 48%;
+  min-height: auto;
   background-color: #2a2a4a;
   border: 2px solid #6a4c93;
   border-radius: 8px;
-  padding: 8px;
+  padding: 8px 12px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .captured-pieces {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 6px;
 }
 
 .captured-piece {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Move history display */
+/* Move history container */
 .move-history-container {
-  max-width: 400px;
-  margin: 0 auto;
+  max-width: 560px; /* Match board width */
+  width: 100%;
+  margin-top: 1rem;
   background-color: #2a2a4a;
   border: 2px solid #6a4c93;
   border-radius: 8px;
@@ -226,67 +234,90 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-.move-history {
-  max-height: 200px;
-  overflow-y: auto;
+/* Move history header */
+.move-history-header {
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem 0.5rem 0.5rem;
+  border-bottom: 2px solid #6a4c93;
+  margin-bottom: 0.5rem;
   font-family: 'Press Start 2P', cursive;
   font-size: 0.7rem;
-  margin-top: 8px;
 }
 
-.move-history table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 2px;
-}
-
-.move-history th {
+.move-header-number {
+  min-width: 30px;
   color: #8b5cf6;
-  padding: 6px;
-  text-align: center;
-  border-bottom: 1px solid #6a4c93;
-  font-size: 0.65rem;
 }
 
-.move-history td {
-  padding: 6px;
+.move-header-white, .move-header-black {
+  flex: 1;
   text-align: center;
+  padding: 4px;
 }
 
-.move-row:hover {
-  background-color: #32324e;
+.move-header-white {
+  color: #f0f0f0;
+}
+
+.move-header-black {
+  color: #a0a0a0;
+}
+
+.move-history {
+  max-height: 160px; /* Reduced slightly to account for the header */
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.7rem;
+}
+
+.move-pair {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(106, 76, 147, 0.3);
+  padding: 4px 0;
+}
+
+.move-number {
+  min-width: 30px;
+  color: #8b5cf6;
+  font-size: 0.7rem;
+}
+
+.move-white, .move-black {
+  flex: 1;
+  text-align: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.move-white {
+  color: #f0f0f0;
+}
+
+.move-black {
+  color: #a0a0a0;
+}
+
+.move-white:not(:empty):hover, .move-black:not(:empty):hover {
+  background-color: rgba(139, 92, 246, 0.2);
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .game-flex-container {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .captured-pieces-container {
-    width: 100%;
-    max-width: 400px;
-    min-height: auto;
-    margin-bottom: 12px;
-  }
-  
-  .captured-pieces {
-    flex-direction: row;
-  }
-  
-  .chess-board {
-    width: 320px;
-    height: 320px;
-  }
-  
-  .square {
-    width: 40px;
-    height: 40px;
-    font-size: 30px;
+  .move-history-container {
+    max-width: 320px;
   }
   
   .move-history {
+    max-height: 200px;
+  }
+  
+  .move-history-header, .move-pair {
     font-size: 0.6rem;
   }
 }

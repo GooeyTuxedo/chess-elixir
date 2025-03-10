@@ -70,27 +70,42 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
       </div>
 
       <div class="game-flex-container">
-        <!-- Left sidebar for captured pieces by white -->
-        <div class="captured-pieces-container">
-          <h3 class="text-sm mb-2 text-center border-b border-purple-800 pb-1">White Captures</h3>
-          <div class="captured-pieces">
-            <%= for {piece_color, piece_type} <- get_sorted_captures(@captured_pieces.white) do %>
-              <div class="captured-piece">
-                <div class={"piece text-white text-2xl"}>
-                  {display_piece({piece_color, piece_type})}
+        <!-- Horizontal captured pieces rows above board -->
+        <div class="captured-pieces-section">
+          <div class="captured-pieces-container">
+            <h3 class="text-sm mb-2 text-center border-b border-purple-800 pb-1">White Captures</h3>
+            <div class="captured-pieces">
+              <%= for {piece_color, piece_type} <- get_sorted_captures(@captured_pieces.white) do %>
+                <div class="captured-piece">
+                  <div class={"piece text-white text-2xl"}>
+                    {display_piece({piece_color, piece_type})}
+                  </div>
                 </div>
-              </div>
-            <% end %>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="captured-pieces-container">
+            <h3 class="text-sm mb-2 text-center border-b border-purple-800 pb-1">Black Captures</h3>
+            <div class="captured-pieces">
+              <%= for {piece_color, piece_type} <- get_sorted_captures(@captured_pieces.black) do %>
+                <div class="captured-piece">
+                  <div class={"piece text-black text-2xl"}>
+                    {display_piece({piece_color, piece_type})}
+                  </div>
+                </div>
+              <% end %>
+            </div>
           </div>
         </div>
 
         <!-- Chess board container -->
-        <div class="board-container mx-auto">
-          <div class="chess-board grid grid-cols-8 border-4 border-gray-800 w-96 h-96 mx-auto">
+        <div class="board-container">
+          <div class="chess-board grid grid-cols-8 border-4 border-gray-800 mx-auto">
             <%= for rank <- if @player_color == :black, do: 0..7, else: 7..0//-1 do %>
               <%= for file <- if @player_color == :black, do: 7..0//-1, else: 0..7 do %>
                 <div
-                  class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} w-12 h-12 flex items-center justify-center"}
+                  class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} flex items-center justify-center"}
                   phx-click="select_square"
                   phx-value-file={file}
                   phx-value-rank={rank}
@@ -114,44 +129,25 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
           </div>
         </div>
 
-        <!-- Right sidebar for captured pieces by black -->
-        <div class="captured-pieces-container">
-          <h3 class="text-sm mb-2 text-center border-b border-purple-800 pb-1">Black Captures</h3>
-          <div class="captured-pieces">
-            <%= for {piece_color, piece_type} <- get_sorted_captures(@captured_pieces.black) do %>
-              <div class="captured-piece">
-                <div class={"piece text-black text-2xl"}>
-                  {display_piece({piece_color, piece_type})}
-                </div>
+        <!-- Move history below the board -->
+        <div class="move-history-container">
+          <h3 class="text-lg text-purple-400 mb-2 text-center">Move History</h3>
+
+          <div class="move-history-header">
+            <div class="move-header-number">#</div>
+            <div class="move-header-white">White</div>
+            <div class="move-header-black">Black</div>
+          </div>
+
+          <div class="move-history">
+            <%= for {moves, index} <- get_paired_moves(@move_history) do %>
+              <div class="move-pair">
+                <div class="move-number"><%= index + 1 %>.</div>
+                <div class="move-white"><%= moves.white || "" %></div>
+                <div class="move-black"><%= moves.black || "" %></div>
               </div>
             <% end %>
           </div>
-        </div>
-      </div>
-
-      <!-- Move history section below the board -->
-      <div class="move-history-container mt-6">
-        <h3 class="text-lg text-purple-400 mb-2 text-center">Move History</h3>
-
-        <div class="move-history">
-          <table class="w-full">
-            <thead>
-              <tr>
-                <th class="px-2 text-left">#</th>
-                <th class="px-2">White</th>
-                <th class="px-2">Black</th>
-              </tr>
-            </thead>
-            <tbody>
-              <%= for {moves, index} <- get_paired_moves(@move_history) do %>
-                <tr class="move-row">
-                  <td class="px-2 text-gray-500"><%= index + 1 %>.</td>
-                  <td class="px-2 text-center"><%= moves.white || "" %></td>
-                  <td class="px-2 text-center"><%= moves.black || "" %></td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
         </div>
       </div>
 
