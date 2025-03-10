@@ -22,6 +22,10 @@ defmodule ChessAppWeb.GameLive.Show do
       {:ok, color} ->
         game_state = GameServer.get_state(game_id)
 
+        # Apply defaults for potentially missing fields in existing games
+        move_history = Map.get(game_state, :move_history, [])
+        captured_pieces = Map.get(game_state, :captured_pieces, %{white: [], black: []})
+
         {:ok,
          assign(socket,
            game_id: game_id,
@@ -39,12 +43,18 @@ defmodule ChessAppWeb.GameLive.Show do
            turn_notification: nil,
            game_result: game_state.game_result,
            promotion_selection: nil,
+           move_history: move_history,
+           captured_pieces: captured_pieces,
            page_title: "Chess Game"
          )}
 
       {:error, :game_full} ->
         # Allow spectating
         game_state = GameServer.get_state(game_id)
+
+        # Apply defaults for potentially missing fields in existing games
+        move_history = Map.get(game_state, :move_history, [])
+        captured_pieces = Map.get(game_state, :captured_pieces, %{white: [], black: []})
 
         {:ok,
          assign(socket,
@@ -63,6 +73,8 @@ defmodule ChessAppWeb.GameLive.Show do
            turn_notification: nil,
            game_result: game_state.game_result,
            promotion_selection: nil,
+           move_history: move_history,
+           captured_pieces: captured_pieces,
            page_title: "Chess Game"
          )}
     end
@@ -229,6 +241,10 @@ defmodule ChessAppWeb.GameLive.Show do
         nil
       end
 
+    # Apply defaults for potentially missing fields
+    move_history = Map.get(new_state, :move_history, [])
+    captured_pieces = Map.get(new_state, :captured_pieces, %{white: [], black: []})
+
     {:noreply,
      assign(socket,
        board: new_state.board,
@@ -238,12 +254,18 @@ defmodule ChessAppWeb.GameLive.Show do
        valid_moves: [],
        last_move: move,
        turn_notification: turn_notification,
-       error_message: nil
+       error_message: nil,
+       move_history: move_history,
+       captured_pieces: captured_pieces
      )}
   end
 
   @impl true
   def handle_info({:game_over, game_result, new_state}, socket) do
+    # Apply defaults for potentially missing fields
+    move_history = Map.get(new_state, :move_history, [])
+    captured_pieces = Map.get(new_state, :captured_pieces, %{white: [], black: []})
+
     # Handle game end
     {:noreply,
      assign(socket,
@@ -252,10 +274,12 @@ defmodule ChessAppWeb.GameLive.Show do
        current_turn: new_state.current_turn,
        selected_square: nil,
        valid_moves: [],
-       last_move: List.first(new_state.move_history),
+       last_move: List.first(move_history),
        game_result: game_result,
        turn_notification: nil,
-       error_message: nil
+       error_message: nil,
+       move_history: move_history,
+       captured_pieces: captured_pieces
      )}
   end
 end

@@ -69,32 +69,89 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
         </div>
       </div>
 
-      <div class="board-container mx-auto max-w-md">
-        <div class="chess-board grid grid-cols-8 border-4 border-gray-800 w-96 h-96 mx-auto">
-          <%= for rank <- if @player_color == :black, do: 0..7, else: 7..0//-1 do %>
-            <%= for file <- if @player_color == :black, do: 7..0//-1, else: 0..7 do %>
-              <div
-                class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} w-12 h-12 flex items-center justify-center"}
-                phx-click="select_square"
-                phx-value-file={file}
-                phx-value-rank={rank}
-                data-file={file}
-                data-rank={rank}
-              >
-                {render_piece(@board.squares[{file, rank}], @status)}
-
-    <!-- Coordinate labels (optional) -->
-                <div class="absolute text-xs opacity-30 bottom-0 right-1">
-                  <%= if rank == (if @player_color == :black, do: 7, else: 0) do %>
-                    {file_to_letter(file)}
-                  <% end %>
-                  <%= if file == (if @player_color == :black, do: 0, else: 7) do %>
-                    {rank + 1}
-                  <% end %>
+      <div class="game-flex-container">
+        <!-- Left sidebar for captured pieces by white -->
+        <div class="captured-pieces-container">
+          <h3 class="text-sm mb-2 text-center border-b border-purple-800 pb-1">White Captures</h3>
+          <div class="captured-pieces">
+            <%= for {piece_color, piece_type} <- get_sorted_captures(@captured_pieces.white) do %>
+              <div class="captured-piece">
+                <div class={"piece text-white text-2xl"}>
+                  {display_piece({piece_color, piece_type})}
                 </div>
               </div>
             <% end %>
-          <% end %>
+          </div>
+        </div>
+
+        <!-- Chess board container -->
+        <div class="board-container mx-auto">
+          <div class="chess-board grid grid-cols-8 border-4 border-gray-800 w-96 h-96 mx-auto">
+            <%= for rank <- if @player_color == :black, do: 0..7, else: 7..0//-1 do %>
+              <%= for file <- if @player_color == :black, do: 7..0//-1, else: 0..7 do %>
+                <div
+                  class={"square #{square_classes({file, rank}, @selected_square, @valid_moves, @last_move, @player_color == @current_turn)} w-12 h-12 flex items-center justify-center"}
+                  phx-click="select_square"
+                  phx-value-file={file}
+                  phx-value-rank={rank}
+                  data-file={file}
+                  data-rank={rank}
+                >
+                  {render_piece(@board.squares[{file, rank}], @status)}
+
+                  <!-- Coordinate labels (optional) -->
+                  <div class="absolute text-xs opacity-30 bottom-0 right-1">
+                    <%= if rank == (if @player_color == :black, do: 7, else: 0) do %>
+                      {file_to_letter(file)}
+                    <% end %>
+                    <%= if file == (if @player_color == :black, do: 0, else: 7) do %>
+                      {rank + 1}
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+
+        <!-- Right sidebar for captured pieces by black -->
+        <div class="captured-pieces-container">
+          <h3 class="text-sm mb-2 text-center border-b border-purple-800 pb-1">Black Captures</h3>
+          <div class="captured-pieces">
+            <%= for {piece_color, piece_type} <- get_sorted_captures(@captured_pieces.black) do %>
+              <div class="captured-piece">
+                <div class={"piece text-black text-2xl"}>
+                  {display_piece({piece_color, piece_type})}
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Move history section below the board -->
+      <div class="move-history-container mt-6">
+        <h3 class="text-lg text-purple-400 mb-2 text-center">Move History</h3>
+
+        <div class="move-history">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="px-2 text-left">#</th>
+                <th class="px-2">White</th>
+                <th class="px-2">Black</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for {moves, index} <- get_paired_moves(@move_history) do %>
+                <tr class="move-row">
+                  <td class="px-2 text-gray-500"><%= index + 1 %>.</td>
+                  <td class="px-2 text-center"><%= moves.white || "" %></td>
+                  <td class="px-2 text-center"><%= moves.black || "" %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -296,5 +353,73 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
       {@unicode}
     </div>
     """
+  end
+
+  def get_paired_moves(nil), do: []
+  def get_paired_moves(move_history) when is_list(move_history) do
+    # Reverse the move history to get chronological order
+    moves = Enum.reverse(move_history)
+
+    # Check for notation field in moves
+    if moves != [] and not Map.has_key?(List.first(moves), :notation) do
+      # If no notation is available, return empty result
+      []
+    else
+      # Group moves into pairs (white's move and black's response)
+      moves
+      |> Enum.reduce({[], nil, 0}, fn move, {pairs, current_white, move_number} ->
+        notation = Map.get(move, :notation, "")
+
+        if move.player_color == :white do
+          # Start a new pair with white's move
+          {pairs, %{white: notation, black: nil}, move_number + 1}
+        else
+          # Complete the current pair with black's move
+          pair = %{white: current_white[:white], black: notation}
+          {[pair | pairs], nil, move_number}
+        end
+      end)
+      |> then(fn {pairs, current_white, move_number} ->
+        # Add the last white move if there's no black response yet
+        pairs = if current_white do
+          [current_white | pairs]
+        else
+          pairs
+        end
+
+        # Return pairs with their move numbers
+        pairs |> Enum.reverse() |> Enum.with_index()
+      end)
+    end
+  end
+  def get_paired_moves(_), do: []
+
+  def get_sorted_captures(nil), do: []
+  def get_sorted_captures(captured_pieces) when is_list(captured_pieces) do
+    # Sort captured pieces by value (most valuable first)
+    captured_pieces
+    |> Enum.sort_by(fn {_color, piece_type} ->
+      case piece_type do
+        :queen -> 1
+        :rook -> 2
+        :bishop -> 3
+        :knight -> 4
+        :pawn -> 5
+        _ -> 6
+      end
+    end)
+  end
+  def get_sorted_captures(_), do: []
+
+  def display_piece({_color, piece_type}) do
+    case piece_type do
+      :queen -> "♛"
+      :rook -> "♜"
+      :bishop -> "♝"
+      :knight -> "♞"
+      :pawn -> "♟︎"
+      :king -> "♚"
+      _ -> "?"
+    end
   end
 end

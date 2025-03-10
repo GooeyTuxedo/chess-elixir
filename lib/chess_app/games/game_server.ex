@@ -1,6 +1,6 @@
 defmodule ChessApp.Games.GameServer do
   use GenServer
-  alias ChessApp.Games.{Board, MoveValidator}
+  alias ChessApp.Games.{Board, MoveValidator, ChessNotation}
 
   # Client API
 
@@ -91,6 +91,10 @@ defmodule ChessApp.Games.GameServer do
        },
        status: :waiting_for_players,
        move_history: [],
+       captured_pieces: %{
+         white: [], # pieces captured by white player
+         black: []  # pieces captured by black player
+       },
        game_result: nil
      }}
   end
@@ -221,12 +225,30 @@ defmodule ChessApp.Games.GameServer do
     end
   end
 
-  # Helper functions (existing ones)
-
-  # Updated handle_move_result to include last_activity timestamp
   defp handle_move_result(state, new_board, move) do
     # Check for game end conditions
     game_status = check_game_status(new_board)
+
+    # Determine if the move resulted in check or checkmate
+    is_check = game_status in [:check_white, :check_black]
+    is_checkmate = game_status in [:checkmate_white, :checkmate_black]
+
+    # Generate algebraic notation for the move if ChessNotation module exists
+    notation = if Code.ensure_loaded?(ChessApp.Games.ChessNotation) do
+      ChessApp.Games.ChessNotation.to_algebraic_notation(move, state.board, is_check, is_checkmate)
+    else
+      nil
+    end
+
+    # Track captured pieces if the field exists in the state
+    captured_pieces = if Map.has_key?(state, :captured_pieces) do
+      update_captured_pieces(state.captured_pieces, state.board, move)
+    else
+      %{white: [], black: []}
+    end
+
+    # Add notation to the move if notation was generated
+    move_with_notation = if notation, do: Map.put(move, :notation, notation), else: move
 
     # Determine game result if the game has ended
     game_result =
@@ -239,16 +261,22 @@ defmodule ChessApp.Games.GameServer do
         _ -> nil
       end
 
-    # Update state with current timestamp
+    # Update state with current timestamp and conditionally add new fields
     current_time = DateTime.utc_now()
-    new_state = %{
-      state
-      | board: new_board,
-        status: game_status,
-        move_history: [move | state.move_history],
-        game_result: game_result,
-        last_activity: current_time
-    }
+
+    new_state = state
+      |> Map.put(:board, new_board)
+      |> Map.put(:status, game_status)
+      |> Map.put(:move_history, [move_with_notation | state.move_history])
+      |> Map.put(:game_result, game_result)
+      |> Map.put(:last_activity, current_time)
+
+    # Only add captured_pieces if it previously existed
+    new_state = if Map.has_key?(state, :captured_pieces) do
+      Map.put(new_state, :captured_pieces, captured_pieces)
+    else
+      new_state
+    end
 
     # Broadcast the move and game result if the game ended
     broadcast_state = Map.put(new_state, :current_turn, new_board.turn)
@@ -263,11 +291,42 @@ defmodule ChessApp.Games.GameServer do
       Phoenix.PubSub.broadcast(
         ChessApp.PubSub,
         "game:#{state.game_id}",
-        {:move_made, move, broadcast_state}
+        {:move_made, move_with_notation, broadcast_state}
       )
     end
 
     {:reply, {:ok, move.move_type}, new_state}
+  end
+
+  defp update_captured_pieces(captured_pieces, board, move) do
+    case move.move_type do
+      :capture ->
+        # A standard capture - find what piece was captured
+        captured = board.squares[move.to]
+        if captured do
+          # Add to the list of pieces captured by the player who made the move
+          Map.update!(captured_pieces, move.player_color, fn pieces -> [captured | pieces] end)
+        else
+          captured_pieces
+        end
+
+      :en_passant ->
+        # En passant capture - we need to get the pawn at the special position
+        {to_file, to_rank} = move.to
+        captured_rank = if move.player_color == :white, do: to_rank - 1, else: to_rank + 1
+        captured_position = {to_file, captured_rank}
+        captured = board.squares[captured_position]
+
+        if captured do
+          Map.update!(captured_pieces, move.player_color, fn pieces -> [captured | pieces] end)
+        else
+          captured_pieces
+        end
+
+      _ ->
+        # No capture occurred
+        captured_pieces
+    end
   end
 
   defp via_tuple(game_id) do
