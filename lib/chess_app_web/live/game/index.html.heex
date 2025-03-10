@@ -4,18 +4,176 @@
   <div class="mb-8 text-center">
     <p class="mb-4 text-sm">Welcome to Retro Chess! Create a new game or join an existing one.</p>
     <p class="text-purple-400 text-sm">
-      Playing as: <span class="font-bold">{@player_nickname}</span>
+      Playing as: <span class="font-bold"><%= @player_nickname %></span>
     </p>
   </div>
 
-  <div class="flex flex-col space-y-6 items-center">
-    <button phx-click="create-game" class="game-button text-sm px-8 py-4 animate-pulse">
+  <div class="flex flex-col space-y-4 items-center mb-8">
+    <button phx-click="show-create-modal" class="game-button text-sm px-8 py-4 animate-pulse">
       Create New Game
     </button>
-
-    <div class="mt-8 text-center text-xs opacity-70">
-      <p>Use a browser and share the game URL</p>
-      <p>to play with a friend!</p>
+  </div>
+  
+  <!-- Game Lists -->
+  <div class="game-lists mb-10">
+    <!-- Games waiting for players -->
+    <div class="game-list-section mb-6">
+      <h2 class="text-xl text-purple-400 mb-2">Games to Join</h2>
+      <%= if Enum.empty?(@joinable_games) do %>
+        <p class="text-sm text-gray-400">No games waiting for players.</p>
+      <% else %>
+        <div class="game-list">
+          <%= for game <- @joinable_games do %>
+            <a href={~p"/games/#{game.game_id}"} class="game-list-item">
+              <div class="flex justify-between items-center">
+                <div>
+                  <span class="text-green-400">
+                    <%= if is_nil(game.players.white) do %>
+                      Needs White Player
+                    <% else %>
+                      White: <%= game.players.white.nickname %>
+                    <% end %>
+                  </span>
+                  <span class="mx-2">vs</span>
+                  <span class="text-blue-400">
+                    <%= if is_nil(game.players.black) do %>
+                      Needs Black Player
+                    <% else %>
+                      Black: <%= game.players.black.nickname %>
+                    <% end %>
+                  </span>
+                </div>
+                <div class="text-xs opacity-70">
+                  Created <%= relative_time(game.created_at) %>
+                </div>
+              </div>
+            </a>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    
+    <!-- Games in progress that can be spectated -->
+    <div class="game-list-section mb-6">
+      <h2 class="text-xl text-purple-400 mb-2">Games to Watch</h2>
+      <%= if Enum.empty?(@spectatable_games) do %>
+        <p class="text-sm text-gray-400">No games in progress to watch.</p>
+      <% else %>
+        <div class="game-list">
+          <%= for game <- @spectatable_games do %>
+            <a href={~p"/games/#{game.game_id}"} class="game-list-item">
+              <div class="flex justify-between items-center">
+                <div>
+                  <span class="text-green-400">
+                    White: <%= game.players.white.nickname %>
+                  </span>
+                  <span class="mx-2">vs</span>
+                  <span class="text-blue-400">
+                    Black: <%= game.players.black.nickname %>
+                  </span>
+                  
+                  <%= if game.status == :check_white do %>
+                    <span class="ml-2 text-red-500">(White in check)</span>
+                  <% end %>
+                  
+                  <%= if game.status == :check_black do %>
+                    <span class="ml-2 text-red-500">(Black in check)</span>
+                  <% end %>
+                </div>
+                <div class="text-xs opacity-70">
+                  Last move <%= relative_time(game.last_activity) %>
+                </div>
+              </div>
+            </a>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    
+    <!-- Completed games -->
+    <div class="game-list-section">
+      <h2 class="text-xl text-purple-400 mb-2">Recent Completed Games</h2>
+      <%= if Enum.empty?(@completed_games) do %>
+        <p class="text-sm text-gray-400">No completed games yet.</p>
+      <% else %>
+        <div class="game-list">
+          <%= for game <- @completed_games do %>
+            <a href={~p"/games/#{game.game_id}"} class="game-list-item">
+              <div class="flex justify-between items-center">
+                <div>
+                  <span class="text-green-400">
+                    White: <%= game.players.white.nickname %>
+                  </span>
+                  <span class="mx-2">vs</span>
+                  <span class="text-blue-400">
+                    Black: <%= game.players.black.nickname %>
+                  </span>
+                  
+                  <%= case game.status do %>
+                    <% :checkmate_white -> %>
+                      <span class="ml-2 text-yellow-500">(Black won)</span>
+                    <% :checkmate_black -> %>
+                      <span class="ml-2 text-yellow-500">(White won)</span>
+                    <% :stalemate -> %>
+                      <span class="ml-2 text-yellow-500">(Draw - Stalemate)</span>
+                    <% :draw_insufficient_material -> %>
+                      <span class="ml-2 text-yellow-500">(Draw - Insufficient material)</span>
+                    <% :draw_fifty_move_rule -> %>
+                      <span class="ml-2 text-yellow-500">(Draw - 50-move rule)</span>
+                    <% _ -> %>
+                      <span class="ml-2 text-yellow-500">(Game ended)</span>
+                  <% end %>
+                </div>
+                <div class="text-xs opacity-70">
+                  Ended <%= relative_time(game.last_activity) %>
+                </div>
+              </div>
+            </a>
+          <% end %>
+        </div>
+      <% end %>
     </div>
   </div>
+  
+  <!-- Create Game Modal -->
+  <%= if @show_create_modal do %>
+    <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+      <div class="bg-gray-900 p-8 border-4 border-purple-700 rounded-lg shadow-lg max-w-md w-full font-pixel">
+        <h2 class="text-xl mb-6 text-center text-purple-400">Create New Game</h2>
+        
+        <div class="flex flex-col space-y-6">
+          <button phx-click="create-public-game" class="game-button">
+            Public Game
+          </button>
+          <button phx-click="create-private-game" class="game-button bg-gray-700 hover:bg-gray-600">
+            Private Game
+          </button>
+          
+          <p class="text-sm text-center mt-2">
+            <span class="text-gray-400">Public games appear in the lobby for anyone to join.</span>
+            <br />
+            <span class="text-gray-400">Private games require you to share the link.</span>
+          </p>
+          
+          <button phx-click="hide-create-modal" class="text-sm text-gray-400 hover:text-white">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  
+  <style>
+    .game-list {
+      @apply space-y-2;
+    }
+    
+    .game-list-item {
+      @apply block p-3 border border-purple-800 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all;
+    }
+    
+    .game-list-section {
+      @apply max-w-3xl mx-auto;
+    }
+  </style>
 </div>

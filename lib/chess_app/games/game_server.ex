@@ -6,19 +6,35 @@ defmodule ChessApp.Games.GameServer do
 
   def start_link(opts) do
     game_id = Keyword.fetch!(opts, :game_id)
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+
+    # Add metadata when starting the process
+    opts = Keyword.put(opts, :created_at, created_at)
+
     GenServer.start_link(__MODULE__, opts, name: via_tuple(game_id))
   end
 
-  def create_game do
-    game_id = generate_game_id()
+  def create_game(opts \\ []) do
+    game_id = Keyword.get(opts, :game_id, generate_game_id())
+    visibility = Keyword.get(opts, :visibility, :public)
+    created_at = DateTime.utc_now()
 
-    DynamicSupervisor.start_child(
+    game_opts = [
+      game_id: game_id,
+      visibility: visibility,
+      created_at: created_at
+    ]
+
+    case DynamicSupervisor.start_child(
       ChessApp.GameSupervisor,
-      {__MODULE__, [game_id: game_id]}
-    )
-
-    {:ok, game_id}
+      {__MODULE__, game_opts}
+    ) do
+      {:ok, _pid} ->
+        {:ok, game_id}
+      error -> error
+    end
   end
+
 
   def join_game(game_id, player_session_id, player_nickname) do
     GenServer.call(via_tuple(game_id), {:join_game, player_session_id, player_nickname})
@@ -32,15 +48,41 @@ defmodule ChessApp.Games.GameServer do
     GenServer.call(via_tuple(game_id), :get_state)
   end
 
+  def ping(game_id) do
+    try do
+      GenServer.call(via_tuple(game_id), :ping)
+    rescue
+      _ -> {:error, :game_not_found}
+    end
+  end
+
+  def terminate_game(game_id) do
+    # Find the actual PID from the registry
+    case Registry.lookup(ChessApp.GameRegistry, game_id) do
+      [{pid, _}] ->
+        DynamicSupervisor.terminate_child(ChessApp.GameSupervisor, pid)
+      _ ->
+        {:error, :game_not_found}
+    end
+  end
+
   # Server callbacks
 
   @impl true
   def init(opts) do
     game_id = Keyword.fetch!(opts, :game_id)
+    visibility = Keyword.get(opts, :visibility, :public)
+    created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+
+    # Store the created_at in the process dictionary for the GameRegistry
+    Process.put(:created_at, created_at)
 
     {:ok,
      %{
        game_id: game_id,
+       visibility: visibility,
+       created_at: created_at,
+       last_activity: created_at,
        board: Board.new(),
        players: %{
          # Will store {session_id, nickname} tuples
@@ -75,8 +117,13 @@ defmodule ChessApp.Games.GameServer do
         # Check if game can now start
         status = if players.white && players.black, do: :in_progress, else: :waiting_for_players
 
-        # Update state
-        state = %{state | players: players, status: status}
+        # Update state with new last_activity timestamp
+        state = %{
+          state |
+          players: players,
+          status: status,
+          last_activity: DateTime.utc_now()
+        }
 
         # Broadcast new player
         Phoenix.PubSub.broadcast(
@@ -98,6 +145,9 @@ defmodule ChessApp.Games.GameServer do
       board: state.board,
       players: state.players,
       status: state.status,
+      visibility: state.visibility,
+      created_at: state.created_at,
+      last_activity: state.last_activity,
       current_turn: state.board.turn,
       move_history: state.move_history,
       game_result: state.game_result
@@ -106,6 +156,14 @@ defmodule ChessApp.Games.GameServer do
     {:reply, game_info, state}
   end
 
+  @impl true
+  def handle_call(:ping, _from, state) do
+    # Update the last activity timestamp
+    new_state = %{state | last_activity: DateTime.utc_now()}
+    {:reply, :pong, new_state}
+  end
+
+  # The make_move function implementation remains unchanged
   @impl true
   def handle_call({:make_move, player_session_id, from, to, promotion_piece}, _from, state) do
     player_color = get_player_color(state, player_session_id)
@@ -163,8 +221,9 @@ defmodule ChessApp.Games.GameServer do
     end
   end
 
-  # Helper functions
+  # Helper functions (existing ones)
 
+  # Updated handle_move_result to include last_activity timestamp
   defp handle_move_result(state, new_board, move) do
     # Check for game end conditions
     game_status = check_game_status(new_board)
@@ -180,13 +239,15 @@ defmodule ChessApp.Games.GameServer do
         _ -> nil
       end
 
-    # Update state
+    # Update state with current timestamp
+    current_time = DateTime.utc_now()
     new_state = %{
       state
       | board: new_board,
         status: game_status,
         move_history: [move | state.move_history],
-        game_result: game_result
+        game_result: game_result,
+        last_activity: current_time
     }
 
     # Broadcast the move and game result if the game ended

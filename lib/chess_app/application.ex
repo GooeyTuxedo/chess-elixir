@@ -14,6 +14,8 @@ defmodule ChessApp.Application do
       {Registry, keys: :unique, name: ChessApp.GameRegistry},
       # Start the dynamic supervisor for game servers
       {DynamicSupervisor, name: ChessApp.GameSupervisor, strategy: :one_for_one},
+      # Start the game cleaner process
+      ChessApp.Games.Cleaner,
       # Start the Endpoint (http/https)
       ChessAppWeb.Endpoint
     ]
