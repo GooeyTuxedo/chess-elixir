@@ -118,43 +118,11 @@ defmodule ChessAppWeb.GameLive.Show do
                  )}
               else
                 # Normal move
-                case GameServer.make_move(
-                       socket.assigns.game_id,
-                       socket.assigns.player_session_id,
-                       selected,
-                       position
-                     ) do
-                  {:ok, _} ->
-                    {:noreply, assign(socket, selected_square: nil, valid_moves: [])}
-
-                  {:error, reason} ->
-                    {:noreply,
-                     assign(socket,
-                       selected_square: nil,
-                       valid_moves: [],
-                       error_message: "Invalid move: #{reason}"
-                     )}
-                end
+                make_move(socket, selected, position)
               end
             else
               # Normal move for non-pawn pieces
-              case GameServer.make_move(
-                     socket.assigns.game_id,
-                     socket.assigns.player_session_id,
-                     selected,
-                     position
-                   ) do
-                {:ok, _} ->
-                  {:noreply, assign(socket, selected_square: nil, valid_moves: [])}
-
-                {:error, reason} ->
-                  {:noreply,
-                   assign(socket,
-                     selected_square: nil,
-                     valid_moves: [],
-                     error_message: "Invalid move: #{reason}"
-                   )}
-              end
+              make_move(socket, selected, position)
             end
           else
             # Select a different piece of the same color
@@ -175,6 +143,7 @@ defmodule ChessAppWeb.GameLive.Show do
     end
   end
 
+
   @impl true
   def handle_event("promote", %{"piece" => piece}, socket) do
     from = socket.assigns.promotion_selection.from
@@ -184,30 +153,7 @@ defmodule ChessAppWeb.GameLive.Show do
     promotion_piece = String.to_existing_atom(piece)
 
     # Complete the move with the promotion
-    case GameServer.make_move(
-           socket.assigns.game_id,
-           socket.assigns.player_session_id,
-           from,
-           to,
-           promotion_piece
-         ) do
-      {:ok, _} ->
-        {:noreply,
-         assign(socket,
-           promotion_selection: nil,
-           selected_square: nil,
-           valid_moves: []
-         )}
-
-      {:error, reason} ->
-        {:noreply,
-         assign(socket,
-           promotion_selection: nil,
-           selected_square: nil,
-           valid_moves: [],
-           error_message: "Invalid promotion: #{reason}"
-         )}
-    end
+    make_move(socket, from, to, promotion_piece)
   end
 
   @impl true
@@ -225,10 +171,10 @@ defmodule ChessAppWeb.GameLive.Show do
     game_state = GameServer.get_state(socket.assigns.game_id)
 
     {:noreply,
-     assign(socket,
-       players: game_state.players,
-       status: game_state.status
-     )}
+    assign(socket,
+    players: game_state.players,
+    status: game_state.status
+    )}
   end
 
   @impl true
@@ -241,45 +187,78 @@ defmodule ChessAppWeb.GameLive.Show do
         nil
       end
 
-    # Apply defaults for potentially missing fields
-    move_history = Map.get(new_state, :move_history, [])
-    captured_pieces = Map.get(new_state, :captured_pieces, %{white: [], black: []})
+      # Apply defaults for potentially missing fields
+      move_history = Map.get(new_state, :move_history, [])
+      captured_pieces = Map.get(new_state, :captured_pieces, %{white: [], black: []})
 
-    {:noreply,
-     assign(socket,
-       board: new_state.board,
-       status: new_state.status,
-       current_turn: new_state.current_turn,
-       selected_square: nil,
-       valid_moves: [],
-       last_move: move,
-       turn_notification: turn_notification,
-       error_message: nil,
-       move_history: move_history,
-       captured_pieces: captured_pieces
-     )}
-  end
+      {:noreply,
+      assign(socket,
+      board: new_state.board,
+      status: new_state.status,
+      current_turn: new_state.current_turn,
+      selected_square: nil,
+      valid_moves: [],
+      last_move: move,
+      turn_notification: turn_notification,
+      error_message: nil,
+      move_history: move_history,
+      captured_pieces: captured_pieces
+      )}
+    end
 
-  @impl true
-  def handle_info({:game_over, game_result, new_state}, socket) do
-    # Apply defaults for potentially missing fields
-    move_history = Map.get(new_state, :move_history, [])
-    captured_pieces = Map.get(new_state, :captured_pieces, %{white: [], black: []})
+    @impl true
+    def handle_info({:game_over, game_result, new_state}, socket) do
+      # Apply defaults for potentially missing fields
+      move_history = Map.get(new_state, :move_history, [])
+      captured_pieces = Map.get(new_state, :captured_pieces, %{white: [], black: []})
 
-    # Handle game end
-    {:noreply,
-     assign(socket,
-       board: new_state.board,
-       status: new_state.status,
-       current_turn: new_state.current_turn,
-       selected_square: nil,
-       valid_moves: [],
-       last_move: List.first(move_history),
-       game_result: game_result,
-       turn_notification: nil,
-       error_message: nil,
-       move_history: move_history,
-       captured_pieces: captured_pieces
-     )}
-  end
+      # Handle game end
+      {:noreply,
+      assign(socket,
+      board: new_state.board,
+      status: new_state.status,
+      current_turn: new_state.current_turn,
+      selected_square: nil,
+      valid_moves: [],
+      last_move: List.first(move_history),
+      game_result: game_result,
+      turn_notification: nil,
+      error_message: nil,
+      move_history: move_history,
+      captured_pieces: captured_pieces
+      )}
+    end
+
+    defp make_move(socket, from, to, promotion_piece \\ nil) do
+      case GameServer.make_move(
+             socket.assigns.game_id,
+             socket.assigns.player_session_id,
+             from,
+             to,
+             promotion_piece
+           ) do
+        {:ok, _} ->
+          {:noreply, assign(socket,
+            selected_square: nil,
+            valid_moves: [],
+            promotion_selection: nil  # Clear promotion selection after successful move
+          )}
+
+        {:error, :need_promotion_selection, from, to} ->
+          # Show promotion selection UI
+          {:noreply,
+           assign(socket,
+             promotion_selection: %{from: from, to: to}
+           )}
+
+        {:error, reason} ->
+          {:noreply,
+           assign(socket,
+             selected_square: nil,
+             valid_moves: [],
+             promotion_selection: nil,  # Clear promotion selection on error too
+             error_message: "Invalid move: #{reason}"
+           )}
+      end
+    end
 end

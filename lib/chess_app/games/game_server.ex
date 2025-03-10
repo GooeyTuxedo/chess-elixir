@@ -167,51 +167,68 @@ defmodule ChessApp.Games.GameServer do
     {:reply, :pong, new_state}
   end
 
-  # The make_move function implementation remains unchanged
   @impl true
   def handle_call({:make_move, player_session_id, from, to, promotion_piece}, _from, state) do
     player_color = get_player_color(state, player_session_id)
 
     # Check if it's a valid player and it's their turn
     if player_color && player_color == state.board.turn do
-      # Validate the move
-      case MoveValidator.validate_move(state.board, from, to, player_color) do
-        {:ok, :promotion} when promotion_piece != nil ->
-          # Execute promotion move
-          {:ok, new_board} = Board.make_move(state.board, from, to, :promotion, promotion_piece)
+      # Validate promotion piece if provided
+      if promotion_piece != nil && promotion_piece not in [:queen, :rook, :bishop, :knight] do
+        {:reply, {:error, :invalid_promotion_piece}, state}
+      else
+        # Validate the move
+        case MoveValidator.validate_move(state.board, from, to, player_color) do
+          {:ok, :promotion} when promotion_piece != nil ->
+            # Execute promotion move
+            case Board.make_move(state.board, from, to, :promotion, promotion_piece) do
+              {:ok, new_board} ->
+                # Record the move
+                move = %{
+                  from: from,
+                  to: to,
+                  piece: Board.piece_at(state.board, from),
+                  move_type: :promotion,
+                  promotion_piece: promotion_piece,
+                  player_color: player_color,
+                  timestamp: DateTime.utc_now()
+                }
 
-          # Record the move
-          move = %{
-            from: from,
-            to: to,
-            piece: Board.piece_at(state.board, from),
-            move_type: :promotion,
-            promotion_piece: promotion_piece,
-            player_color: player_color,
-            timestamp: DateTime.utc_now()
-          }
+                # Handle rest of move similar to other moves
+                handle_move_result(state, new_board, move)
 
-          # Handle rest of move similar to other moves
-          handle_move_result(state, new_board, move)
+              error ->
+                {:reply, error, state}
+            end
 
-        {:ok, move_type} ->
-          # Execute the standard move
-          {:ok, new_board} = Board.make_move(state.board, from, to, move_type)
+          {:ok, :promotion} ->
+            # Promotion piece is required but not provided
+            # Return a special error that the LiveView will handle by showing promotion options
+            {:reply, {:error, :need_promotion_selection, from, to}, state}
 
-          # Record the move
-          move = %{
-            from: from,
-            to: to,
-            piece: Board.piece_at(state.board, from),
-            move_type: move_type,
-            player_color: player_color,
-            timestamp: DateTime.utc_now()
-          }
+          {:ok, move_type} ->
+            # Execute the standard move
+            case Board.make_move(state.board, from, to, move_type) do
+              {:ok, new_board} ->
+                # Record the move
+                move = %{
+                  from: from,
+                  to: to,
+                  piece: Board.piece_at(state.board, from),
+                  move_type: move_type,
+                  player_color: player_color,
+                  timestamp: DateTime.utc_now()
+                }
 
-          handle_move_result(state, new_board, move)
+                handle_move_result(state, new_board, move)
 
-        {:error, reason} ->
-          {:reply, {:error, reason}, state}
+              error ->
+                {:reply, error, state}
+            end
+
+          {:error, reason} ->
+            {:reply, {:error, reason}, state}
+        end
       end
     else
       reason =

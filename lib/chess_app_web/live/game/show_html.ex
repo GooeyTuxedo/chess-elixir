@@ -379,7 +379,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
           {[pair | pairs], nil, move_number}
         end
       end)
-      |> then(fn {pairs, current_white, move_number} ->
+      |> then(fn {pairs, current_white, _move_number} ->
         # Add the last white move if there's no black response yet
         pairs = if current_white do
           [current_white | pairs]
