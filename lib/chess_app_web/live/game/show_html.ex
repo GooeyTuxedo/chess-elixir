@@ -219,16 +219,37 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
         </div>
       <% end %>
 
-      <%= if @rematch_game_id do %>
+      <%# Rematch invitation dialog %>
+      <%= if @rematch_info do %>
+        <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+          <div class="bg-gray-900 p-8 border-4 border-purple-700 rounded-lg shadow-lg max-w-md w-full font-pixel">
+            <h2 class="text-xl mb-6 text-center text-purple-400">Rematch Invitation</h2>
+
+            <p class="text-center mb-8 text-sm">
+              <%= @rematch_info.opponent_nickname %> has invited you to a rematch!
+            </p>
+
+            <div class="flex justify-center space-x-4">
+              <button phx-click="accept_rematch" class="game-button bg-green-700 hover:bg-green-600">
+                Accept
+              </button>
+
+              <button phx-click="decline_rematch" class="game-button bg-red-700 hover:bg-red-600">
+                Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%# Waiting for opponent notification %>
+      <%= if @waiting_for_rematch do %>
         <div class="fixed bottom-4 right-4 bg-purple-800 p-4 rounded-lg shadow-lg z-50">
-          <p class="text-white">Rematch invitation from opponent!</p>
-          <div class="mt-2 flex space-x-2">
-            <a href={~p"/games/#{@rematch_game_id}"} class="game-button bg-green-600 hover:bg-green-500">
-              Accept
+          <p class="text-white">Waiting for opponent to accept rematch...</p>
+          <div class="mt-2">
+            <a href="/" class="game-button bg-gray-700 hover:bg-gray-600 text-xs">
+              Cancel & Return to Lobby
             </a>
-            <button phx-click="decline_rematch" class="game-button bg-red-600 hover:bg-red-500">
-              Decline
-            </button>
           </div>
         </div>
       <% end %>
