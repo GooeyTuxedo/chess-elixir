@@ -87,7 +87,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
             <div class="captured-pieces">
               <%= for {piece_color, piece_type} <- get_sorted_captures(@captured_pieces.white) do %>
                 <div class="captured-piece">
-                  <div class={"piece text-white text-2xl"}>
+                  <div class={"piece text-black text-2xl"}>
                     {display_piece({piece_color, piece_type})}
                   </div>
                 </div>
@@ -100,7 +100,7 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
             <div class="captured-pieces">
               <%= for {piece_color, piece_type} <- get_sorted_captures(@captured_pieces.black) do %>
                 <div class="captured-piece">
-                  <div class={"piece text-black text-2xl"}>
+                  <div class={"piece text-white text-2xl"}>
                     {display_piece({piece_color, piece_type})}
                   </div>
                 </div>
