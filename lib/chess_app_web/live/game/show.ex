@@ -51,6 +51,7 @@ defmodule ChessAppWeb.GameLive.Show do
            captured_pieces: captured_pieces,
            ai_player: ai_player,
            ai_difficulty: ai_difficulty,
+           rematch_game_id: nil,
            page_title: "Chess Game"
          )}
 
@@ -87,6 +88,7 @@ defmodule ChessAppWeb.GameLive.Show do
            captured_pieces: captured_pieces,
            ai_player: ai_player,
            ai_difficulty: ai_difficulty,
+           rematch_game_id: nil,
            page_title: "Chess Game"
          )}
     end
@@ -170,11 +172,58 @@ defmodule ChessAppWeb.GameLive.Show do
 
   @impl true
   def handle_event("play_again", _params, socket) do
-    # Create a new game
-    {:ok, new_game_id} = GameServer.create_game()
+    # Check if the current game has an AI player
+    is_ai_game = false
 
-    # Redirect to the new game
-    {:noreply, push_navigate(socket, to: ~p"/games/#{new_game_id}")}
+    # Look at the players to determine if one is an AI
+    is_ai_game = case socket.assigns.players do
+      %{black: {"ai_session", _nickname}} -> true
+      %{white: {"ai_session", _nickname}} -> true
+      _ -> false
+    end
+
+    # Determine the AI color and difficulty
+    ai_color = cond do
+      match?({"ai_session", _}, socket.assigns.players.black) -> :black
+      match?({"ai_session", _}, socket.assigns.players.white) -> :white
+      true -> nil
+    end
+
+    # Extract difficulty from the AI nickname, defaulting to 1 (Easy)
+    ai_difficulty = 1
+    ai_nickname = case ai_color do
+      :black -> elem(socket.assigns.players.black, 1)
+      :white -> elem(socket.assigns.players.white, 1)
+      _ -> ""
+    end
+
+    # Parse difficulty from nickname
+    difficulty_str = cond do
+      String.contains?(ai_nickname, "Hard") -> 3
+      String.contains?(ai_nickname, "Medium") -> 2
+      true -> 1  # Default to Easy
+    end
+
+    if is_ai_game && ai_color do
+      # Create a new game with AI
+      {:ok, new_game_id} = GameServer.create_game_with_ai(
+        ai_color: ai_color,
+        ai_difficulty: difficulty_str
+      )
+
+      # Redirect to the new game
+      {:noreply, push_navigate(socket, to: ~p"/games/#{new_game_id}")}
+    else
+      # For human vs human games, create a regular game
+      {:ok, new_game_id} = GameServer.create_game()
+
+      # Redirect to the new game
+      {:noreply, push_navigate(socket, to: ~p"/games/#{new_game_id}")}
+    end
+  end
+
+  def handle_event("decline_rematch", _params, socket) do
+    {:noreply, assign(socket, rematch_game_id: nil)}
   end
 
   @impl true
@@ -239,6 +288,13 @@ defmodule ChessAppWeb.GameLive.Show do
       move_history: move_history,
       captured_pieces: captured_pieces
       )}
+    end
+
+    def handle_info({:rematch_invitation, new_game_id, opponent_nickname}, socket) do
+      # Show a notification to the player
+      {:noreply, socket
+        |> put_flash(:info, "#{opponent_nickname} has invited you to a rematch!")
+        |> assign(:rematch_game_id, new_game_id)}
     end
 
     defp make_move(socket, from, to, promotion_piece \\ nil) do

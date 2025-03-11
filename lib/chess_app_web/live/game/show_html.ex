@@ -173,6 +173,28 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
         <% end %>
       </div>
 
+      <%= if @promotion_selection do %>
+        <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+          <div class="bg-gray-900 p-6 border-4 border-purple-700 rounded-lg shadow-lg font-pixel">
+            <h3 class="text-lg mb-6 text-center text-purple-400">Choose Promotion</h3>
+
+            <div class="flex space-x-4 justify-center">
+              <%= for piece <- [:queen, :rook, :bishop, :knight] do %>
+                <button
+                  class="p-4 border-2 border-gray-600 rounded-lg hover:bg-gray-800 transition-all"
+                  phx-click="promote"
+                  phx-value-piece={piece}
+                >
+                  <div class="text-4xl">
+                    {promotion_piece_symbol(@player_color, piece)}
+                  </div>
+                </button>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
       <%= if @game_result do %>
         <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
           <div class="bg-gray-900 p-8 border-4 border-purple-700 rounded-lg shadow-lg max-w-md w-full font-pixel">
@@ -197,24 +219,16 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
         </div>
       <% end %>
 
-      <%= if @promotion_selection do %>
-        <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
-          <div class="bg-gray-900 p-6 border-4 border-purple-700 rounded-lg shadow-lg font-pixel">
-            <h3 class="text-lg mb-6 text-center text-purple-400">Choose Promotion</h3>
-
-            <div class="flex space-x-4 justify-center">
-              <%= for piece <- [:queen, :rook, :bishop, :knight] do %>
-                <button
-                  class="p-4 border-2 border-gray-600 rounded-lg hover:bg-gray-800 transition-all"
-                  phx-click="promote"
-                  phx-value-piece={piece}
-                >
-                  <div class="text-4xl">
-                    {promotion_piece_symbol(@player_color, piece)}
-                  </div>
-                </button>
-              <% end %>
-            </div>
+      <%= if @rematch_game_id do %>
+        <div class="fixed bottom-4 right-4 bg-purple-800 p-4 rounded-lg shadow-lg z-50">
+          <p class="text-white">Rematch invitation from opponent!</p>
+          <div class="mt-2 flex space-x-2">
+            <a href={~p"/games/#{@rematch_game_id}"} class="game-button bg-green-600 hover:bg-green-500">
+              Accept
+            </a>
+            <button phx-click="decline_rematch" class="game-button bg-red-600 hover:bg-red-500">
+              Decline
+            </button>
           </div>
         </div>
       <% end %>

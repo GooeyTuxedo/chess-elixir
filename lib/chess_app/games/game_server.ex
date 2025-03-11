@@ -43,14 +43,35 @@ defmodule ChessApp.Games.GameServer do
     game_id = Keyword.get(opts, :game_id, generate_game_id())
     visibility = Keyword.get(opts, :visibility, :public)
     ai_color = Keyword.get(opts, :ai_color, :black)
-    ai_difficulty = Keyword.get(opts, :ai_difficulty, 2)
+    ai_difficulty = Keyword.get(opts, :ai_difficulty, 1)
 
-    create_game([
+    # Create a new game
+    {:ok, game_id} = create_game([
       game_id: game_id,
-      visibility: visibility,
-      ai_player: ai_color,
-      ai_difficulty: ai_difficulty
+      visibility: visibility
     ])
+
+    # Get the game pid
+    pid = GenServer.whereis(via_tuple(game_id))
+
+    # Manually set up AI player in the game state
+    :sys.replace_state(pid, fn state ->
+      # Create AI nickname based on difficulty
+      ai_nickname = case ai_difficulty do
+        3 -> "AI (Hard)"
+        2 -> "AI (Medium)"
+        _ -> "AI (Easy)"
+      end
+
+      # Update the state
+      %{state |
+        ai_player: ai_color,
+        ai_difficulty: ai_difficulty
+      }
+    end)
+
+    # Return the game ID
+    {:ok, game_id}
   end
 
   def join_game(game_id, player_session_id, player_nickname) do
@@ -137,15 +158,20 @@ defmodule ChessApp.Games.GameServer do
 
       # Check if the available color is already taken
       if (available_color == :white && state.players.white) ||
-        (available_color == :black && state.players.black) do
+         (available_color == :black && state.players.black) do
         {:reply, {:error, :game_full}, state}
       else
         # Assign player to available color
         players = Map.put(state.players, available_color, {player_session_id, player_nickname})
 
-        # If AI plays opposite color, assign AI as a player
-        ai_nickname = "AI (#{if(state.ai_difficulty == 1, do: "Easy", else: if( state.ai_difficulty == 2, do: "Medium", else: "Hard"))})"
+        # If this is an AI game, assign the AI player too
         players = if state.ai_player do
+          ai_nickname = case state.ai_difficulty do
+            3 -> "AI (Hard)"
+            2 -> "AI (Medium)"
+            _ -> "AI (Easy)"
+          end
+
           Map.put(players, state.ai_player, {"ai_session", ai_nickname})
         else
           players
