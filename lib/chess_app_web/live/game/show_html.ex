@@ -12,7 +12,12 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
             <div class="flex justify-between items-center">
               <div>
                 <span class="text-xs">WHITE</span>
-                <p class="mt-1 text-sm">{display_player(@players.white)}</p>
+                <p class="mt-1 text-sm">
+                  {display_player(@players.white)}
+                  <%= if @ai_player == :white do %>
+                    <span class="ml-2 text-green-400">(AI)</span>
+                  <% end %>
+                </p>
               </div>
               <%= if @current_turn == :white do %>
                 <div class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
@@ -24,7 +29,12 @@ defmodule ChessAppWeb.GameLive.ShowHTML do
             <div class="flex justify-between items-center">
               <div>
                 <span class="text-xs">BLACK</span>
-                <p class="mt-1 text-sm">{display_player(@players.black)}</p>
+                <p class="mt-1 text-sm">
+                  {display_player(@players.black)}
+                  <%= if @ai_player == :black do %>
+                    <span class="ml-2 text-green-400">(AI)</span>
+                  <% end %>
+                </p>
               </div>
               <%= if @current_turn == :black do %>
                 <div class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>

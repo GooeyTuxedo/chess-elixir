@@ -22,6 +22,10 @@ defmodule ChessAppWeb.GameLive.Show do
       {:ok, color} ->
         game_state = GameServer.get_state(game_id)
 
+        # Get AI player information
+        ai_player = Map.get(game_state, :ai_player)
+        ai_difficulty = Map.get(game_state, :ai_difficulty, 2)
+
         # Apply defaults for potentially missing fields in existing games
         move_history = Map.get(game_state, :move_history, [])
         captured_pieces = Map.get(game_state, :captured_pieces, %{white: [], black: []})
@@ -45,12 +49,18 @@ defmodule ChessAppWeb.GameLive.Show do
            promotion_selection: nil,
            move_history: move_history,
            captured_pieces: captured_pieces,
+           ai_player: ai_player,
+           ai_difficulty: ai_difficulty,
            page_title: "Chess Game"
          )}
 
       {:error, :game_full} ->
         # Allow spectating
         game_state = GameServer.get_state(game_id)
+
+        # Get AI player information for spectators too
+        ai_player = Map.get(game_state, :ai_player)
+        ai_difficulty = Map.get(game_state, :ai_difficulty, 2)
 
         # Apply defaults for potentially missing fields in existing games
         move_history = Map.get(game_state, :move_history, [])
@@ -75,6 +85,8 @@ defmodule ChessAppWeb.GameLive.Show do
            promotion_selection: nil,
            move_history: move_history,
            captured_pieces: captured_pieces,
+           ai_player: ai_player,
+           ai_difficulty: ai_difficulty,
            page_title: "Chess Game"
          )}
     end

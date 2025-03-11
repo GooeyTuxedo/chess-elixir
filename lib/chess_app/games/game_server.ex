@@ -1,6 +1,6 @@
 defmodule ChessApp.Games.GameServer do
   use GenServer
-  alias ChessApp.Games.{Board, MoveValidator, ChessNotation}
+  alias ChessApp.Games.{Board, MoveValidator, ChessNotation, AIPlayer}
 
   # Client API
 
@@ -18,11 +18,15 @@ defmodule ChessApp.Games.GameServer do
     game_id = Keyword.get(opts, :game_id, generate_game_id())
     visibility = Keyword.get(opts, :visibility, :public)
     created_at = DateTime.utc_now()
+    ai_player = Keyword.get(opts, :ai_player)
+    ai_difficulty = Keyword.get(opts, :ai_difficulty, 2)
 
     game_opts = [
       game_id: game_id,
       visibility: visibility,
-      created_at: created_at
+      created_at: created_at,
+      ai_player: ai_player,
+      ai_difficulty: ai_difficulty
     ]
 
     case DynamicSupervisor.start_child(
@@ -35,6 +39,19 @@ defmodule ChessApp.Games.GameServer do
     end
   end
 
+  def create_game_with_ai(opts \\ []) do
+    game_id = Keyword.get(opts, :game_id, generate_game_id())
+    visibility = Keyword.get(opts, :visibility, :public)
+    ai_color = Keyword.get(opts, :ai_color, :black)
+    ai_difficulty = Keyword.get(opts, :ai_difficulty, 2)
+
+    create_game([
+      game_id: game_id,
+      visibility: visibility,
+      ai_player: ai_color,
+      ai_difficulty: ai_difficulty
+    ])
+  end
 
   def join_game(game_id, player_session_id, player_nickname) do
     GenServer.call(via_tuple(game_id), {:join_game, player_session_id, player_nickname})
@@ -73,6 +90,8 @@ defmodule ChessApp.Games.GameServer do
     game_id = Keyword.fetch!(opts, :game_id)
     visibility = Keyword.get(opts, :visibility, :public)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
+    ai_player = Keyword.get(opts, :ai_player)
+    ai_difficulty = Keyword.get(opts, :ai_difficulty, 2)
 
     # Store the created_at in the process dictionary for the GameRegistry
     Process.put(:created_at, created_at)
@@ -85,17 +104,18 @@ defmodule ChessApp.Games.GameServer do
        last_activity: created_at,
        board: Board.new(),
        players: %{
-         # Will store {session_id, nickname} tuples
          white: nil,
          black: nil
        },
        status: :waiting_for_players,
        move_history: [],
        captured_pieces: %{
-         white: [], # pieces captured by white player
-         black: []  # pieces captured by black player
+         white: [],
+         black: []
        },
-       game_result: nil
+       game_result: nil,
+       ai_player: ai_player,
+       ai_difficulty: ai_difficulty
      }}
   end
 
@@ -108,20 +128,33 @@ defmodule ChessApp.Games.GameServer do
       # Player already joined, return their color
       {:reply, {:ok, player_color}, state}
     else
-      # If game is full, return error
-      if state.players.white && state.players.black do
+      # If AI is playing, ensure the player can only join as the human color
+      available_color = case state.ai_player do
+        :white -> :black
+        :black -> :white
+        nil -> if is_nil(state.players.white), do: :white, else: :black
+      end
+
+      # Check if the available color is already taken
+      if (available_color == :white && state.players.white) ||
+        (available_color == :black && state.players.black) do
         {:reply, {:error, :game_full}, state}
       else
-        # Assign player to first available color
-        color = if is_nil(state.players.white), do: :white, else: :black
+        # Assign player to available color
+        players = Map.put(state.players, available_color, {player_session_id, player_nickname})
 
-        # Update players map
-        players = Map.put(state.players, color, {player_session_id, player_nickname})
+        # If AI plays opposite color, assign AI as a player
+        ai_nickname = "AI (#{if(state.ai_difficulty == 1, do: "Easy", else: if( state.ai_difficulty == 2, do: "Medium", else: "Hard"))})"
+        players = if state.ai_player do
+          Map.put(players, state.ai_player, {"ai_session", ai_nickname})
+        else
+          players
+        end
 
         # Check if game can now start
         status = if players.white && players.black, do: :in_progress, else: :waiting_for_players
 
-        # Update state with new last_activity timestamp
+        # Update state
         state = %{
           state |
           players: players,
@@ -133,10 +166,15 @@ defmodule ChessApp.Games.GameServer do
         Phoenix.PubSub.broadcast(
           ChessApp.PubSub,
           "game:#{state.game_id}",
-          {:player_joined, color, player_nickname}
+          {:player_joined, available_color, player_nickname}
         )
 
-        {:reply, {:ok, color}, state}
+        # If the AI should move first, schedule the move
+        if status == :in_progress && state.ai_player == :white do
+          Process.send_after(self(), :ai_move, 1000)
+        end
+
+        {:reply, {:ok, available_color}, state}
       end
     end
   end
@@ -242,6 +280,28 @@ defmodule ChessApp.Games.GameServer do
     end
   end
 
+  @impl true
+  def handle_info(:ai_move, state) do
+    if state.status in [:in_progress, :check_white, :check_black] && state.board.turn == state.ai_player do
+      # Select the best move for the AI
+      {from, to, promotion_piece} = AIPlayer.select_move(state.board, state.ai_player, state.ai_difficulty)
+
+      # Make the AI move
+      case make_ai_move(state, from, to, promotion_piece) do
+        {:ok, new_state} ->
+          {:noreply, new_state}
+        {:error, _reason} ->
+          # If the AI somehow selected an invalid move, try again with a random move
+          all_moves = generate_random_move(state.board, state.ai_player)
+          {from, to, promotion_piece} = Enum.random(all_moves)
+          {:ok, new_state} = make_ai_move(state, from, to, promotion_piece)
+          {:noreply, new_state}
+      end
+    else
+      {:noreply, state}
+    end
+  end
+
   defp handle_move_result(state, new_board, move) do
     # Check for game end conditions
     game_status = check_game_status(new_board)
@@ -312,7 +372,134 @@ defmodule ChessApp.Games.GameServer do
       )
     end
 
+    # Schedule AI move if it's the AI's turn after this move
+    new_state = if state.ai_player == new_board.turn do
+      # Schedule the AI to make a move after a short delay
+      Process.send_after(self(), :ai_move, 1000)
+      new_state
+    else
+      new_state
+    end
+
     {:reply, {:ok, move.move_type}, new_state}
+  end
+
+  # Helper function to make AI moves
+  defp make_ai_move(state, from, to, promotion_piece) do
+    # Get the piece color before making the move
+    piece = Board.piece_at(state.board, from)
+    _piece_color = elem(piece, 0)
+
+    # Determine move type
+    move_type = case MoveValidator.validate_move(state.board, from, to, state.ai_player) do
+      {:ok, type} -> type
+      {:error, _} -> :normal  # Fallback
+    end
+
+    # Make the move, ensuring promotion maintains the correct color
+    case Board.make_move(state.board, from, to, move_type, promotion_piece) do
+      {:ok, new_board} ->        # Record the move
+        move = %{
+          from: from,
+          to: to,
+          piece: Board.piece_at(state.board, from),
+          move_type: move_type,
+          promotion_piece: promotion_piece,
+          player_color: state.ai_player,
+          timestamp: DateTime.utc_now()
+        }
+
+        # Check for game end conditions
+        game_status = check_game_status(new_board)
+
+        # Add notation to the move
+        notation = ChessApp.Games.ChessNotation.to_algebraic_notation(
+          move,
+          state.board,
+          game_status in [:check_white, :check_black],
+          game_status in [:checkmate_white, :checkmate_black]
+        )
+
+        move_with_notation = Map.put(move, :notation, notation)
+
+        # Update captured pieces
+        captured_pieces = update_captured_pieces(state.captured_pieces, state.board, move)
+
+        # Determine game result
+        game_result = case game_status do
+          :checkmate_white -> %{winner: :black, reason: :checkmate}
+          :checkmate_black -> %{winner: :white, reason: :checkmate}
+          :stalemate -> %{winner: nil, reason: :stalemate}
+          :draw_insufficient_material -> %{winner: nil, reason: :insufficient_material}
+          :draw_fifty_move_rule -> %{winner: nil, reason: :fifty_move_rule}
+          _ -> nil
+        end
+
+        # Update state
+        new_state = state
+          |> Map.put(:board, new_board)
+          |> Map.put(:status, game_status)
+          |> Map.put(:move_history, [move_with_notation | state.move_history])
+          |> Map.put(:game_result, game_result)
+          |> Map.put(:last_activity, DateTime.utc_now())
+          |> Map.put(:captured_pieces, captured_pieces)
+
+        # Broadcast the move
+        broadcast_state = Map.put(new_state, :current_turn, new_board.turn)
+
+        if game_result do
+          Phoenix.PubSub.broadcast(
+            ChessApp.PubSub,
+            "game:#{state.game_id}",
+            {:game_over, game_result, broadcast_state}
+          )
+        else
+          Phoenix.PubSub.broadcast(
+            ChessApp.PubSub,
+            "game:#{state.game_id}",
+            {:move_made, move_with_notation, broadcast_state}
+          )
+        end
+
+        {:ok, new_state}
+
+      error ->
+        error
+    end
+  end
+
+  # Helper to generate a random valid move
+  defp generate_random_move(board, color) do
+    board.squares
+    |> Enum.filter(fn {{_file, _rank}, {piece_color, _}} -> piece_color == color end)
+    |> Enum.flat_map(fn {from, _piece} ->
+      # Get all valid destinations for this piece
+      board
+      |> MoveValidator.valid_moves(from)
+      |> Enum.map(fn to ->
+        # Check if this is a pawn promotion move
+        promotion_piece = needs_promotion?(board, from, to)
+        {from, to, promotion_piece}
+      end)
+    end)
+  end
+
+  # Helper to check if a move results in promotion
+  defp needs_promotion?(board, from, to) do
+    piece = Board.piece_at(board, from)
+
+    case piece do
+      {:white, :pawn} ->
+        {_, to_rank} = to
+        if to_rank == 7, do: :queen, else: nil
+
+      {:black, :pawn} ->
+        {_, to_rank} = to
+        if to_rank == 0, do: :queen, else: nil
+
+      _ ->
+        nil
+    end
   end
 
   defp update_captured_pieces(captured_pieces, board, move) do

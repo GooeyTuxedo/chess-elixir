@@ -9,8 +9,11 @@
   </div>
 
   <div class="flex flex-col space-y-4 items-center mb-8">
-    <button phx-click="show-create-modal" class="game-button text-sm px-8 py-4 animate-pulse">
-      Create New Game
+    <button phx-click="show-create-modal" class="game-button text-sm px-8 py-4">
+      Create Multiplayer Game
+    </button>
+    <button phx-click="show-ai-modal" class="game-button text-sm px-8 py-4 bg-green-700 hover:bg-green-600">
+      Play vs Computer
     </button>
   </div>
   
@@ -135,6 +138,57 @@
     </div>
   </div>
   
+  <!-- AI Game Modal -->
+  <%= if @show_ai_modal do %>
+    <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+      <div class="bg-gray-900 p-8 border-4 border-purple-700 rounded-lg shadow-lg max-w-md w-full font-pixel">
+        <h2 class="text-xl mb-6 text-center text-purple-400">Play Against Computer</h2>
+        
+        <div class="flex flex-col space-y-6">
+          <div class="mb-4">
+            <h3 class="mb-2 text-white">You play as:</h3>
+            <div class="flex space-x-4">
+              <button phx-click="set-ai-color" phx-value-color="black" 
+                      class={"px-4 py-2 rounded #{if @ai_color == :black, do: "bg-white text-black", else: "bg-gray-700 text-white"}"}>
+                White
+              </button>
+              <button phx-click="set-ai-color" phx-value-color="white"
+                      class={"px-4 py-2 rounded #{if @ai_color == :white, do: "bg-black text-white", else: "bg-gray-700 text-white"}"}>
+                Black
+              </button>
+            </div>
+          </div>
+          
+          <div class="mb-4">
+            <h3 class="mb-2 text-white">Difficulty:</h3>
+            <div class="flex space-x-4">
+              <button phx-click="set-ai-difficulty" phx-value-difficulty="1"
+                      class={"px-4 py-2 rounded #{if @ai_difficulty == 1, do: "bg-green-600", else: "bg-gray-700"}"}>
+                Easy
+              </button>
+              <button phx-click="set-ai-difficulty" phx-value-difficulty="2"
+                      class={"px-4 py-2 rounded #{if @ai_difficulty == 2, do: "bg-yellow-600", else: "bg-gray-700"}"}>
+                Medium
+              </button>
+              <button phx-click="set-ai-difficulty" phx-value-difficulty="3"
+                      class={"px-4 py-2 rounded #{if @ai_difficulty == 3, do: "bg-red-600", else: "bg-gray-700"}"}>
+                Hard
+              </button>
+            </div>
+          </div>
+          
+          <button phx-click="create-ai-game" class="game-button bg-green-700 hover:bg-green-600">
+            Start Game
+          </button>
+          
+          <button phx-click="hide-ai-modal" class="text-sm text-gray-400 hover:text-white">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
   <!-- Create Game Modal -->
   <%= if @show_create_modal do %>
     <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
@@ -162,18 +216,4 @@
       </div>
     </div>
   <% end %>
-  
-  <style>
-    .game-list {
-      @apply space-y-2;
-    }
-    
-    .game-list-item {
-      @apply block p-3 border border-purple-800 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all;
-    }
-    
-    .game-list-section {
-      @apply max-w-3xl mx-auto;
-    }
-  </style>
 </div>

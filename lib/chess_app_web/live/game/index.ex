@@ -17,7 +17,10 @@ defmodule ChessAppWeb.GameLive.Index do
         joinable_games: GameRegistry.list_joinable_games(),
         spectatable_games: GameRegistry.list_spectatable_games(),
         completed_games: Enum.take(GameRegistry.list_completed_games(), 5), # Limit to 5 most recent
-        show_create_modal: false
+        show_create_modal: false,
+        show_ai_modal: false,
+        ai_color: :black, # Default AI plays as black
+        ai_difficulty: 2  # Default medium difficulty
       )
 
     {:ok, socket}
@@ -49,6 +52,31 @@ defmodule ChessAppWeb.GameLive.Index do
   @impl true
   def handle_event("create-public-game", _params, socket) do
     {:ok, game_id} = GameServer.create_game(visibility: :public)
+    {:noreply, push_navigate(socket, to: ~p"/games/#{game_id}")}
+  end
+
+  def handle_event("show-ai-modal", _params, socket) do
+    {:noreply, assign(socket, show_ai_modal: true)}
+  end
+
+  def handle_event("hide-ai-modal", _params, socket) do
+    {:noreply, assign(socket, show_ai_modal: false)}
+  end
+
+  def handle_event("set-ai-color", %{"color" => color}, socket) do
+    {:noreply, assign(socket, ai_color: String.to_existing_atom(color))}
+  end
+
+  def handle_event("set-ai-difficulty", %{"difficulty" => difficulty}, socket) do
+    {:noreply, assign(socket, ai_difficulty: String.to_integer(difficulty))}
+  end
+
+  def handle_event("create-ai-game", _params, socket) do
+    {:ok, game_id} = GameServer.create_game_with_ai(
+      ai_color: socket.assigns.ai_color,
+      ai_difficulty: socket.assigns.ai_difficulty
+    )
+
     {:noreply, push_navigate(socket, to: ~p"/games/#{game_id}")}
   end
 
